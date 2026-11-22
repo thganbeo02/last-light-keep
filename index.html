@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Last Light Keep</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Lilita+One&family=Nunito:wght@600;700;800&display=swap">
+<link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+<div id="hud">
+  <div class="t" id="hmap">RIVER CROSSING</div>
+  <div class="r"><span>Wave</span><b id="hw">1</b></div>
+  <div class="r"><span>Gold</span><b id="hg">0</b></div>
+  <div class="r"><span>Castle</span><b id="hh">100</b></div>
+  <div class="bar"><i id="hb"></i></div>
+  <div class="r"><span>Defeated</span><b id="hd">0</b></div>
+  <div id="hm"></div>
+</div>
+<div id="fade"></div>
+<div id="title" class="ui">
+  <img class="t-art" alt="" src="/src/art/title-art.webp">
+  <h1 class="t-logo t-word">Last Light<span>Keep</span></h1><!-- swap for a painted logo: docs/ART.md -->
+  <div class="card t-panel">
+    <p class="sub">Keep the last beacon burning.</p>
+    <div class="t-load" role="status"><span>Loading the realm&hellip;</span><i><b></b></i></div>
+    <div class="row t-btns"><button id="bplay" class="big primary">Play</button><button id="bwatch" class="big">Watch</button></div>
+    <button id="tnotes" class="t-notes" type="button">Patch notes <small></small></button>
+    <p class="hint">Tap a stone plot to build. Tap an enemy to see its stats. Drag to move, pinch or scroll to zoom.</p>
+  </div>
+</div>
+<div id="end" class="ui" hidden><div class="card">
+  <h2 id="etitle">Victory</h2>
+  <p class="sub" id="esub">All 12 waves repelled.</p>
+  <div class="stats" id="estats"></div>
+  <div class="stars" id="estars"></div>
+  <div class="row"><button id="bnext" class="big primary">Next map</button><button id="bretry" class="big">Play again</button><button id="btitle" class="big">Title</button></div>
+</div></div>
+<div id="maps" class="ui" hidden><div class="card mp">
+  <div class="bkh"><h2>Choose a map</h2><span class="msub">Stars: 3 = castle above 80 health, 2 = above 40, 1 = any win</span><button id="mclose" aria-label="Close">&#x2715;</button></div>
+  <div class="mlist" id="mlist"></div>
+</div></div>
+<div id="ring" class="ui" hidden></div>
+<div id="tring" class="ui" hidden></div>
+<div id="ttip" class="ui" hidden></div>
+<div id="spells" class="ui" hidden aria-label="Spells"></div>
+<div id="ctrl" class="ui" hidden>
+  <button id="bsend"><span id="bsendl">Send wave 1</span><small id="bsends"></small><span id="bprev"></span></button>
+  <button id="bspeed" class="sq" aria-label="Game speed">1&#xd7;</button>
+  <button id="bpause" class="sq" aria-label="Pause">&#10074;&#10074;</button>
+  <button id="bview" class="sq" aria-label="Reset camera">View</button>
+  <button id="bbook2" class="sq" aria-label="Almanac">Book</button>
+  <button id="bquit" class="sq" aria-label="Quit to the world map">Quit</button>
+</div>
+<button id="bmenu" class="ui" hidden>Menu</button>
+<div id="einfo" class="ui card" hidden>
+  <div class="ph"><i id="edot"></i><b id="ename"></b><button id="eclose" aria-label="Close">&#x2715;</button></div>
+  <div class="hpb"><i id="ehp"></i></div>
+  <div id="ekv" class="kv"></div>
+  <div id="edesc" class="note"></div>
+</div>
+<div id="tut" class="ui" hidden role="status"><b class="tut-k">Tip</b><p id="tutT"></p><button id="tutOk" type="button">Got it</button></div>
+<div id="wmap" class="ui" hidden>
+  <div class="w-top"><h2>The Ashen March</h2><span class="w-total" aria-label="Stars earned"><i>&#9733;</i><span id="wstars">0 / 33</span></span>
+    <button id="wup" type="button">Upgrades</button><button id="wbook" type="button">Almanac</button><button id="wnotes" type="button">Notes</button><button id="wback" type="button">Title</button></div>
+  <div id="wsurf" aria-label="World map of the Ashen March. Drag to look around, scroll or pinch to zoom."></div><div id="wlabels"></div>
+  <div id="wtoast" role="status" hidden></div>
+</div>
+<div id="brief" class="ui" hidden><div class="b-card" role="dialog" aria-modal="true" aria-labelledby="bName">
+  <div class="b-head"><small id="bArea"></small><h2 id="bName"></h2><button id="bClose" type="button" aria-label="Close">&#x2715;</button></div>
+  <div class="b-body">
+    <p class="b-story" id="bStory"></p>
+    <div class="b-facts" id="bFacts"></div>
+    <div class="b-sect">Your towers</div>
+    <div class="b-ens" id="bTowers"></div>
+    <div class="b-sect">Enemies you will face</div>
+    <div class="b-ens" id="bEnemies"></div>
+    <div class="b-sect">Difficulty</div>
+    <div class="b-diff" id="bDiff" role="group" aria-label="Difficulty"></div>
+    <p class="b-note" id="bDiffNote"></p>
+    <div class="b-foot"><span class="b-best" id="bBest"></span><button id="bStart" type="button">Start battle</button></div>
+  </div>
+</div></div>
+<div id="book" class="ui" hidden><div class="card bk">
+  <div class="bkh"><h2>Keep Almanac</h2><div class="tabs"><button data-tab="towers" class="on" aria-pressed="true">Towers</button><button data-tab="enemies" aria-pressed="false">Enemies</button></div><button id="bkclose" aria-label="Close">&#x2715;</button></div>
+  <div class="bkb" id="bkb"></div><canvas id="bkcv" hidden></canvas>
+</div></div>
+<div id="notes" class="ui" hidden><div class="pn" role="dialog" aria-label="Patch notes">
+  <aside class="pn-side" id="pnSide" aria-label="Patches"></aside>
+  <main class="pn-main" id="pnMain"></main>
+  <button id="pnClose" class="pn-x" type="button" aria-label="Close">&#x2715;</button>
+</div></div>
+<div id="skills" class="ui" hidden><div class="card bk sk" role="dialog" aria-label="War Council skill tree">
+  <div class="bkh"><h2>War Council</h2><span class="sk-pts" id="skPts"></span><button id="skReset" class="sk-rs" type="button">Refund all</button><button id="skClose" class="sk-x" aria-label="Close">&#x2715;</button></div>
+  <div class="sk-sub"><span id="skSrc"></span><span class="sk-prev">Your picks apply in every battle you play (not in Watch mode).</span></div>
+  <div class="sk-tabs" id="skTabs" role="tablist" aria-label="Trees"></div>
+  <div class="sk-body"><div class="sk-cv"><div class="sk-stage" id="skStage"></div></div><aside class="sk-side" id="skSide" aria-live="polite"></aside></div>
+</div></div>
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
