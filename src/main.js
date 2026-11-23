@@ -4452,11 +4452,14 @@ const IC = {
   horn: '<path d="M3 8c3 0 5 3 8 3h6l3-4v10l-3-4h-6c-3 0-5 3-8 3z"/><path d="M20 7c1 1.5 1 8.5 0 10"/>',
   hex: '<path d="M12 2l8.5 5v10L12 22l-8.5-5V7z"/><circle cx="12" cy="12" r="3"/><path d="M12 6v3M12 15v3"/>',
 };
+// painted round badges (src/art/badges): actions by key, specialisations by their name ("Siege Mortar" → siege-mortar)
+const BADGE = Object.fromEntries(Object.entries(import.meta.glob('./art/badges/*.webp', { eager: true, import: 'default' })).map(([p, url]) => [p.split('/').pop().slice(0, -5), url]));
+const badge = n => `<img src="${BADGE[n]}" alt="" draggable="false">`;
+const specBadge = name => badge(name.toLowerCase().replace(/ /g, '-'));
 const hx = c => '#' + c.toString(16).padStart(6, '0');
 const TCOL = { arrow: '#2f5a22', cannon: '#3a3f4a', frost: '#1f6a8a', tesla: '#5a3aa0', flame: '#a8401a', barracks: '#2a4a8a', drum: '#a8341a' };
 const svg = (n, s = 28, w = 2.4) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n]}</svg>`;
 const TICON = { arrow: 'bow', cannon: 'bomb', frost: 'snow', tesla: 'bolt', flame: 'flame', barracks: 'helm', drum: 'drum' };
-const SICON = { drum: { a: 'horn', b: 'hex' }, barracks: { a: 'sun', b: 'bow' }, arrow: { a: 'bow', b: 'volley' }, cannon: { a: 'mortar', b: 'scatter' }, frost: { a: 'snow', b: 'field' }, tesla: { a: 'storm', b: 'beam' }, flame: { a: 'fireline', b: 'inferno' } };
 const MODES = ['first', 'last', 'strong', 'close'], MODEN = { first: 'First', last: 'Last', strong: 'Strongest', close: 'Closest' };
 const MODED = { first: 'the enemy furthest along the road', last: 'the enemy furthest back', strong: 'the enemy with the most health', close: 'the nearest enemy' };
 const starRow = (n, c) => [0, 1, 2].map(i => `<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="${IC.max.match(/d="([^"]+)"/)[1]}" fill="${i < n ? c : '#4a3a2a'}" stroke="#2e1b0d" stroke-width="1.8"/></svg>`).join('');
@@ -4559,20 +4562,20 @@ function renderRing(force) {
   for (const k of ['specA', 'specB']) {
     const sk = k === 'specA' ? 'a' : 'b', d = SPEC[t.type][sk], b = trBtn(k), tg = trTag(k);
     b.hidden = tg.hidden = !A.choose;
-    b.innerHTML = svg(SICON[t.type][sk], 32); b.setAttribute('aria-label', `${d.name}, ${d.cost} gold`);
+    b.innerHTML = specBadge(d.name); b.classList.add('bd'); b.setAttribute('aria-label', `${d.name}, ${d.cost} gold`);
     b.classList.toggle('poor', game.gold < d.cost); b.classList.toggle('sel', TR.armed === k);
     tg.textContent = d.cost; tg.classList.toggle('poor', game.gold < d.cost);
   }
   const ub = trBtn('up'), ut = trTag('up');
   ub.hidden = ut.hidden = A.choose;
-  ub.innerHTML = svg(A.max ? 'max' : 'up', 34, 2.8); ub.disabled = A.max;
+  ub.innerHTML = A.max ? svg('max', 34, 2.8) : badge('action-upgrade'); ub.classList.toggle('bd', !A.max); ub.disabled = A.max;
   ub.classList.toggle('poor', !A.max && game.gold < A.upCostNow); ub.classList.toggle('sel', TR.armed === 'up');
   ub.setAttribute('aria-label', A.max ? 'Fully upgraded' : `Upgrade for ${A.upCostNow} gold`);
   ut.textContent = A.max ? 'MAX' : A.upCostNow; ut.classList.toggle('poor', !A.max && game.gold < A.upCostNow);
-  const ab = trBtn('aim'); ab.innerHTML = svg('aim', 26); ab.setAttribute('aria-label', `Aim: ${MODEN[t.mode]}`); trTag('aim').textContent = MODEN[t.mode];
+  const ab = trBtn('aim'); ab.innerHTML = badge('action-targeting'); ab.classList.add('bd'); ab.setAttribute('aria-label', `Aim: ${MODEN[t.mode]}`); trTag('aim').textContent = MODEN[t.mode];
   ab.hidden = trTag('aim').hidden = t.type === 'drum';
-  if (t.type === 'barracks') { ab.innerHTML = svg('flag', 26); ab.setAttribute('aria-label', 'Move the rally point'); trTag('aim').textContent = 'Rally'; }
-  const sb = trBtn('sell'); sb.innerHTML = svg('coin', 26); sb.classList.toggle('sel', TR.armed === 'sell'); sb.setAttribute('aria-label', `Sell for ${A.refund} gold`); trTag('sell').textContent = '+' + A.refund;
+  if (t.type === 'barracks') { ab.innerHTML = badge('action-rally'); ab.setAttribute('aria-label', 'Move the rally point'); trTag('aim').textContent = 'Rally'; }
+  const sb = trBtn('sell'); sb.innerHTML = badge('action-sell'); sb.classList.add('bd'); sb.classList.toggle('sel', TR.armed === 'sell'); sb.setAttribute('aria-label', `Sell for ${A.refund} gold`); trTag('sell').textContent = '+' + A.refund;
   $('rstars').innerHTML = t.spec ? starRow(t.rank, '#d07aff') : starRow(t.lvl, '#f2c14e');
   $('rstars').setAttribute('aria-label', t.spec ? `Rank ${t.rank} of 3` : `Level ${t.lvl} of 3`);
   // tooltip
