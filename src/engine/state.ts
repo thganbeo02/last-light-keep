@@ -47,7 +47,7 @@ export interface Game {
   /** which towers, levels and specialisations the campaign has opened (UNLOCKS) */
   gate: Gate;
   wave: number; gold: number; earned: number; defeated: number; built: number;
-  hp: number; maxHp: number; soulHeal: number; standUsed: boolean; standT: number;
+  hp: number; maxHp: number; soulHeal: number; standUsed: boolean; standT: number; slitT: number;
   nextId: number;
   enemies: Enemy[];
   spots: Spot[];
@@ -67,7 +67,7 @@ export function makeGame(o: GameOptions): Game {
     skills: new Set(o.mode === 'watch' ? [] : o.skills ?? []), // Watch mode plays without the War Council
     gate: UNLOCKS[o.mode === 'watch' ? UNLOCKS.length - 1 : o.gate ?? UNLOCKS.length - 1], // Watch mode has everything open
     state: 'play', wave: 0, gold: 0, earned: 0, defeated: 0, built: 0,
-    hp: 100, maxHp: 100, soulHeal: 0, standUsed: false, standT: 0,
+    hp: 100, maxHp: 100, soulHeal: 0, standUsed: false, standT: 0, slitT: 0,
     nextId: 1, enemies: [],
     spots: map.plots.map(p => ({ ...p, used: false, block: 0 })), towers: [], soldiers: [],
     projs: [], firePatches: [], icePatches: [], events: [],
