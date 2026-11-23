@@ -5808,6 +5808,11 @@ window.__towerStats = (ids = []) => { SKILL_VIEW = { has: new Set(ids) }; const 
 window.__barrStats = (ids = []) => { SKILL_VIEW = { has: new Set(ids) }; const out = {}; for (const k of [1, 2, 3]) out[k] = barrStat(k); for (const k of ['a', 'b']) for (const R of [1, 2, 3]) out[k + R] = barrStat(k, R); SKILL_VIEW = null; return out; };
 // War Drum stats for every level, specialisation and rank with the given War Council picks
 window.__drumStats = (ids = []) => { SKILL_VIEW = { has: new Set(ids) }; const out = {}; for (const k of [1, 2, 3]) out[k] = drumStat(k); for (const k of ['a', 'b']) for (const R of [1, 2, 3]) out[k + R] = drumStat(k, R); SKILL_VIEW = null; return out; };
+// plays one whole Watch mode battle on map i as fast as possible and reports how it ended: the simulator baseline
+window.__watchRun = (i, maxSec = 1500) => { resetGame('auto', i); const d = game.diff, t0 = game.time - 3; let n = 0; // game.time runs on across battles; the opening plays 3 s
+  while (game.state === 'play' && n < maxSec * 30) { updateGame(1 / 30); n++; }
+  return { state: game.state, hp: game.hp, wave: game.wave, t: Math.round(game.time - t0), towers: towers.length, diff: d,
+    left: game.state === 'play' ? enemies.map(e => ({ type: e.type, d: +e.d.toFixed(2), len: +e.path.len.toFixed(1), hp: Math.round(e.hp), fighting: e.fighting, stun: +e.stun.toFixed(2), freeze: +e.freeze.toFixed(2), plantT: +(e.plantT || 0).toFixed(2), spawnQ: game.spawnQ.length })) : undefined }; }; // left: what was still on the field when the cap hit
 window.__g = () => ({ gold: game.gold, wave: game.wave, towers: towers.map(t => t.type + t.lvl).join(' '), hp: game.hp, state: game.state, en: enemies.length });
 window.__step = n => { for (let i = 0; i < n; i++) { updateGame(1 / 30); updateDirector(1 / 30); updateSky(1 / 30); } return game.state + ' ' + game.wave + ' ' + game.hp; };
 window.__shot = n => { startShot({ name: n, e: enemies.find(e => e.type === 'boss'), t: towers.find(t => t.target) || towers[0] }, true); for (let i = 0; i < 60; i++) { updateGame(1 / 30); updateDirector(1 / 30); } };

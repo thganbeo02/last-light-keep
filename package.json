@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "extract": "tsx tools/extract-content.ts"
+    "extract": "tsx tools/extract-content.ts",
+    "sim": "tsx tools/sim.ts"
   },
   "dependencies": {
     "three": "0.160.0"
