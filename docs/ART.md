@@ -16,6 +16,9 @@
 ## Wanted for 4.0 (Painted UI)
 
 - [ ] **Last Light Keep logo.** Until it arrives, a text wordmark stands in (`.t-word` in `index.html` and `style.css`). To use it, swap the `<h1 class="t-logo t-word">` back to `<img src="/src/art/logo.webp">`.
-- [ ] **19 badges.** List them here by key when the art lands.
+- [x] **19 badges** in `src/art/badges/`, each a 256×256 round WebP with transparent corners. The size lets them show sharp at 128 px. They aren't wired into the UI yet.
+    - Actions: `action-build`, `action-rally`, `action-sell`, `action-targeting`, `action-upgrade`.
+    - Specialisations: `volley`, `longbow`, `inferno`, `storm`, `overload`, `siege-mortar`, `scattergun`, `deep-freeze`, `glacier-field`, `fireline`, `paladins`, `rangers`, `war-horn`, `hex-totem`.
+    - The originals (1254 px PNG) stay outside the repo.
 - [ ] **Spell icons.** Militia Call, Catapult Barrage, Frost Nova.
 - [ ] **Captain Hollis Brannock portraits, 4 expressions.** Name each file `brannock-<expression>.webp`.
