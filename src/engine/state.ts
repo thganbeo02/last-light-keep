@@ -6,6 +6,7 @@ import { makeRng, type Rng } from './rng.ts';
 import { UNLOCKS } from '../content/campaign.ts';
 import type { Enemy } from './enemies.ts';
 import type { FirePatch, IcePatch, Projectile } from './projectiles.ts';
+import type { Soldier } from './soldiers.ts';
 import type { Gate, Spot, Tower } from './towers.ts';
 
 export type Mode = 'play' | 'watch';
@@ -27,7 +28,10 @@ export type GameEvent =
   | { t: 'build' | 'upgrade' | 'specialise'; tower: Tower }
   | { t: 'sell'; tower: Tower; refund: number }
   | { t: 'fire'; tower: Tower; target: Enemy }
-  | { t: 'blast'; at: { x: number; y: number; z: number }; r: number };
+  | { t: 'blast'; at: { x: number; y: number; z: number }; r: number }
+  | { t: 'soldierDown'; s: Soldier }
+  | { t: 'holy'; s: Soldier; e: Enemy }
+  | { t: 'enemyHit'; e: Enemy; s: Soldier };
 
 export interface Game {
   rng: Rng; time: number;
@@ -47,7 +51,7 @@ export interface Game {
   nextId: number;
   enemies: Enemy[];
   spots: Spot[];
-  towers: Tower[];
+  towers: Tower[]; soldiers: Soldier[];
   projs: Projectile[]; firePatches: FirePatch[]; icePatches: IcePatch[];
   events: GameEvent[];
 }
@@ -65,7 +69,7 @@ export function makeGame(o: GameOptions): Game {
     state: 'play', wave: 0, gold: 0, earned: 0, defeated: 0, built: 0,
     hp: 100, maxHp: 100, soulHeal: 0, standUsed: false, standT: 0,
     nextId: 1, enemies: [],
-    spots: map.plots.map(p => ({ ...p, used: false, block: 0 })), towers: [],
+    spots: map.plots.map(p => ({ ...p, used: false, block: 0 })), towers: [], soldiers: [],
     projs: [], firePatches: [], icePatches: [], events: [],
   };
 }

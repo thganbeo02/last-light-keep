@@ -5804,6 +5804,8 @@ window.__towerStats = (ids = []) => { SKILL_VIEW = { has: new Set(ids) }; const 
     for (const L of [1, 2, 3]) r[L] = tStat(type, L);
     for (const k of ['a', 'b']) for (const R of [1, 2, 3]) { r[k + R] = specStat(type, k, R); if (R > 1) r.rank[k + R] = rankCost(type, k, R); } }
   out.sell = sellRate(); out.mortarDead = mortarDead(); SKILL_VIEW = null; return out; };
+// Barracks soldier stats for every level, specialisation and rank with the given War Council picks
+window.__barrStats = (ids = []) => { SKILL_VIEW = { has: new Set(ids) }; const out = {}; for (const k of [1, 2, 3]) out[k] = barrStat(k); for (const k of ['a', 'b']) for (const R of [1, 2, 3]) out[k + R] = barrStat(k, R); SKILL_VIEW = null; return out; };
 window.__g = () => ({ gold: game.gold, wave: game.wave, towers: towers.map(t => t.type + t.lvl).join(' '), hp: game.hp, state: game.state, en: enemies.length });
 window.__step = n => { for (let i = 0; i < n; i++) { updateGame(1 / 30); updateDirector(1 / 30); updateSky(1 / 30); } return game.state + ' ' + game.wave + ' ' + game.hp; };
 window.__shot = n => { startShot({ name: n, e: enemies.find(e => e.type === 'boss'), t: towers.find(t => t.target) || towers[0] }, true); for (let i = 0; i < 60; i++) { updateGame(1 / 30); updateDirector(1 / 30); } };

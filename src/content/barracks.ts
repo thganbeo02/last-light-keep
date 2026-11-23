@@ -72,6 +72,10 @@ export const SOL_INFO = {
 
 export const SOL_REGEN = 0.02;
 
+export const SOL_FIRST = ["Aldric", "Bram", "Cedric", "Doran", "Edric", "Finn", "Garrick", "Hal", "Ivo", "Jory", "Kael", "Leof", "Merek", "Nils", "Osric", "Perrin", "Rowan", "Sten", "Tobin", "Ulric", "Wat", "Wystan", "Yorick", "Gunnar", "Halvard", "Bertram", "Godwin", "Oswin", "Roderick", "Tam", "Willem", "Anselm", "Brynn", "Corwin", "Dunstan", "Elric", "Fenwick", "Gareth", "Hugo", "Lambert"];
+
+export const SOL_LAST = ["Ironfoot", "Oakshield", "Stonebrow", "Ashdown", "Blackwood", "Brightwater", "Copperbeard", "Fairweather", "Greaves", "Hammerfall", "Hollins", "Longstride", "Marsh", "Redmane", "Strongbow", "Thatcher", "Underhill", "Whitlock", "Woodward", "Barley", "Cobb", "Dale", "Fletcher", "Mason"];
+
 export const DRUM = {
   "1": {
     haste: 0.15,

@@ -10,7 +10,7 @@ export const GROUPS: Record<string, string[]> = {
   maps: ['MAPS', 'LIQ'], // LIQ: liquid looks; the engine reads only each kind's ground height
   enemies: ['ED', 'GROUPING', 'ATK', 'ATKX'],
   towers: ['TT', 'DTYPE', 'DNAME', 'SPEC', 'UPC', 'MORTAR_DEAD'], // RANKX is tooltip text: it moves with the UI
-  barracks: ['BARR', 'SOL_INFO', 'SOL_REGEN', 'DRUM'],
+  barracks: ['BARR', 'SOL_INFO', 'SOL_REGEN', 'SOL_FIRST', 'SOL_LAST', 'DRUM'],
   spells: ['SPELLS', 'MILITIA'],
   campaign: ['AREAS', 'LEVELS', 'UNLOCKS', 'DIFFS', 'BOUNTY'],
   skills: ['SK', 'SK_STAT', 'SK_WHEN'],

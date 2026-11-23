@@ -9,6 +9,7 @@ import { centreDist2, hurt, type Enemy } from './enemies.ts';
 import { pathAt } from './map.ts';
 import { int, range } from './rng.ts';
 import { fireArrow, fireBall, fireShard, freezeEnemy } from './projectiles.ts';
+import { barracksTick, barrAsStat, refreshSoldiers, type BarrKey, type BarrStat, type Rally, type Soldier } from './soldiers.ts';
 import { has, type Game } from './state.ts';
 
 export type TowerType = keyof typeof TT;
@@ -74,6 +75,10 @@ export interface Tower {
   /** War Drum boosts, set every tick by the drum pass: fire-rate haste and range bonus */
   haste: number; rngB: number;
   ab: Abilities;
+  /** Barracks: soldier stats, rally point, soldiers and per-slot respawn timers */
+  bs: BarrStat | null; rally: Rally; soldiers: Soldier[]; resp: (number | undefined)[];
+  /** War Drum: its stats (set in the War Drum step) */
+  ds: { rad: number } | null;
 }
 
 export interface Spot { gx: number; gz: number; x: number; z: number; used: boolean; block: number }
@@ -90,6 +95,7 @@ function abilities(g: Game, t: Tower): Abilities {
 
 /** The tower's current stats, with a War Drum's range bonus. */
 export function stats(g: Game, t: Tower): Stat {
+  if (t.type === 'barracks') { const s = barrAsStat(t.bs!); if (t.rngB) s.range *= 1 + t.rngB; return s; }
   if (!isAttack(t.type)) throw new Error(`${t.type} stats arrive with its step in docs/M1.md`);
   const s = t.spec ? specStat(g, t.type, t.spec, t.rank) : tStat(g, t.type, t.lvl);
   if (t.rngB) s.range *= 1 + t.rngB;
@@ -121,9 +127,10 @@ export function buildTower(g: Game, type: TowerType, plot: number, o: { instant?
     id: g.nextId++, type, plot, x: s.x, z: s.z, stunT: 0, lvl: 1, spec: null, rank: 0, mode: type === 'flame' ? 'close' : 'first', spend: cost,
     buildT: o.instant ? 1 : 0, cool: range(g.rng, 0, TT[type].rate), target: null, retarget: 0, held: null, holdT: 0, shots: 0,
     charge: 1, lastBeam: null, napT: 0, rainAt: -99, cd: { finish: 0, snap: 0, ember: 0, flashover: 0, surge: 0 }, lastHit: null, hitN: 0,
-    haste: 0, rngB: 0, ab: undefined as unknown as Abilities,
+    haste: 0, rngB: 0, ab: undefined as unknown as Abilities, bs: null, rally: undefined as unknown as Rally, soldiers: [], resp: [], ds: null,
   };
   t.ab = abilities(g, t);
+  if (type === 'barracks') refreshSoldiers(g, t);
   g.towers.push(t); g.built++; g.events.push({ t: 'build', tower: t });
   return t;
 }
@@ -141,7 +148,7 @@ export function upgradeTower(g: Game, t: Tower): boolean {
   if (A.choose || A.max || g.gold < A.upCostNow) return false;
   g.gold -= A.upCostNow; t.spend += A.upCostNow;
   if (t.spec) t.rank++; else t.lvl++;
-  t.ab = abilities(g, t); g.events.push({ t: 'upgrade', tower: t });
+  t.ab = abilities(g, t); if (t.type === 'barracks') refreshSoldiers(g, t); g.events.push({ t: 'upgrade', tower: t });
   return true;
 }
 
@@ -151,13 +158,15 @@ export function specialise(g: Game, t: Tower, k: SpecKey): boolean {
   g.gold -= cost; t.spend += cost;
   t.spec = k; t.lvl = 4; t.rank = 1; t.target = null;
   if ((t.type === 'arrow' && k === 'a') || (t.type === 'frost' && k === 'a') || (t.type === 'flame' && k === 'b')) t.mode = 'strong';
-  t.ab = abilities(g, t); g.events.push({ t: 'specialise', tower: t });
+  t.ab = abilities(g, t); if (t.type === 'barracks') refreshSoldiers(g, t);
+  g.events.push({ t: 'specialise', tower: t });
   return true;
 }
 
 export function sellTower(g: Game, t: Tower) {
   const refund = Math.round(t.spend * sellRate(g)), s = g.spots[t.plot];
   g.gold += refund; g.towers.splice(g.towers.indexOf(t), 1);
+  for (const so of t.soldiers) so.alive = false;
   s.used = false;
   for (const n of g.spots) if (Math.abs(n.gx - s.gx) <= 1 && Math.abs(n.gz - s.gz) <= 1) n.block--;
   g.events.push({ t: 'sell', tower: t, refund });
@@ -191,7 +200,8 @@ export function findTarget(g: Game, t: Tower, r: number): Enemy | null {
 export function updateTower(g: Game, t: Tower, dt: number) {
   if (t.buildT < 1) { t.buildT = Math.min(1, t.buildT + dt * 0.9); if (t.buildT < 0.75) return; } // still rising
   if (t.stunT > 0) { t.stunT -= dt; return; } // knocked out by a Sapper
-  if (!isAttack(t.type)) return; // Barracks and War Drum: their own steps
+  if (t.type === 'barracks') { barracksTick(g, t, dt); return; }
+  if (!isAttack(t.type)) return; // War Drum: its own step
   const st = stats(g, t), ab = t.ab, rng = g.rng;
   for (const k in t.cd) t.cd[k as keyof Tower['cd']] -= dt;
   // timed abilities that don't need the current target

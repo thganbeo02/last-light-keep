@@ -8,6 +8,7 @@ import { enemyCombat } from './combat.ts';
 import { smoothPath } from './map.ts';
 import { range } from './rng.ts';
 import { groundY, has, type Game } from './state.ts';
+import type { Soldier } from './soldiers.ts';
 import type { Tower } from './towers.ts';
 import { hpMul, type EnemyType } from './waves.ts';
 
@@ -25,8 +26,9 @@ export interface Enemy {
   // specials
   healT: number; roared: boolean; shrug: boolean; lastSlow: number;
   planted: boolean; plantT: number; plantOn: Tower | null;
-  // melee with soldiers (filled in by the Barracks port)
-  fighting: boolean; faceT: number | null;
+  // melee with soldiers (src/engine/combat.ts, src/engine/soldiers.ts)
+  fighting: boolean; faceT: number | null; blocker: Soldier | null; shooting: Soldier | null;
+  atkT: number | undefined; charged: boolean; fan: { x: number; z: number; t: number } | null;
 }
 
 const _p = { x: 0, z: 0 }, _dir = { x: 0, z: 0 };
@@ -53,7 +55,7 @@ export function spawnEnemy(g: Game, type: EnemyType, d = 0, path = 0): Enemy {
     slow: 0, slowF: 1, freeze: 0, stun: 0, burn: 0, sunder: 0, brittle: 0, iceBrittle: false, shockT: 0, shockDmg: 0, hex: 0, markT: 0, bleedT: 0,
     healT: range(g.rng, 0.5, 2), roared: false, shrug: false, lastSlow: 0,
     planted: false, plantT: 0, plantOn: null,
-    fighting: false, faceT: null,
+    fighting: false, faceT: null, blocker: null, shooting: null, atkT: undefined, charged: false, fan: null,
   };
   place(g, e, 0, true);
   g.enemies.push(e); g.events.push({ t: 'spawn', e });
