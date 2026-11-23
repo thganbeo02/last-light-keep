@@ -19,6 +19,7 @@
 - [x] **19 badges** in `src/art/badges/`, each a 256×256 round WebP with transparent corners. The size lets them show sharp at 128 px. The tower ring uses them.
     - Actions: `action-build`, `action-rally`, `action-sell`, `action-targeting`, `action-upgrade`.
     - Specialisations: `volley`, `longbow`, `inferno`, `storm`, `overload`, `siege-mortar`, `scattergun`, `deep-freeze`, `glacier-field`, `fireline`, `paladins`, `rangers`, `war-horn`, `hex-totem`.
+    - Tower types (bronze rim, used by the build ring): `tower-arrow`, `tower-cannon`, `tower-frost`, `tower-tesla`, `tower-flame`, `tower-barracks`, `tower-drum`.
     - The originals (1254 px PNG) stay outside the repo.
 - [x] **Spell icons** in `src/art/spells/` (`militia`, `catapult`, `nova`): white background removed, 256 px WebP. The spell bar uses them. Taken from `spell-militiaman`, `spell-boulder-barrage-v2` and `spell-frost-burst`. Three other Frost Nova variants are unused.
 - [ ] **Captain Hollis Brannock portraits, 4 expressions.** Name each file `brannock-<expression>.webp`.

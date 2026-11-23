@@ -4461,8 +4461,6 @@ const specBadge = name => badge(name.toLowerCase().replace(/ /g, '-'));
 const hx = c => '#' + c.toString(16).padStart(6, '0');
 const TCOL = { arrow: '#2f5a22', cannon: '#3a3f4a', frost: '#1f6a8a', tesla: '#5a3aa0', flame: '#a8401a', barracks: '#2a4a8a', drum: '#a8341a' };
 const svg = (n, s = 28, w = 2.4) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n]}</svg>`;
-// painted level-1 tower art from the almanac, shown in the build ring
-const TOWER_ART = Object.fromEntries(Object.entries(import.meta.glob('./art/almanac/*-1.webp', { eager: true, import: 'default' })).map(([p, url]) => [p.split('/').pop().slice(0, -7), url]));
 const MODES = ['first', 'last', 'strong', 'close'], MODEN = { first: 'First', last: 'Last', strong: 'Strongest', close: 'Closest' };
 const MODED = { first: 'the enemy furthest along the road', last: 'the enemy furthest back', strong: 'the enemy with the most health', close: 'the nearest enemy' };
 const starRow = (n, c) => [0, 1, 2].map(i => `<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="${IC.max.match(/d="([^"]+)"/)[1]}" fill="${i < n ? c : '#4a3a2a'}" stroke="#2e1b0d" stroke-width="1.8"/></svg>`).join('');
@@ -4486,7 +4484,7 @@ function placeTip(cx, cy, above, below = 120) {
 
 // --- build ring: round buttons around an empty plot
 const ringEl = $('ring');
-ringEl.innerHTML = TYPES.map(t => `<button class="rb" data-t="${t}" style="--c:${hx(TT[t].col)}" aria-label="${TT[t].name}, ${TT[t].cost} gold"><img class="rt" src="${TOWER_ART[t]}" alt="" draggable="false"></button><span class="tag" data-tag="${t}">${TT[t].cost}</span>`).join('') + `<button class="rb x" aria-label="Close">${svg('x', 18, 3)}</button>`;
+ringEl.innerHTML = TYPES.map(t => `<button class="rb bd" data-t="${t}" style="--c:${hx(TT[t].col)}" aria-label="${TT[t].name}, ${TT[t].cost} gold">${badge('tower-' + t)}</button><span class="tag" data-tag="${t}">${TT[t].cost}</span>`).join('') + `<button class="rb x" aria-label="Close">${svg('x', 18, 3)}</button>`;
 const ringBtns = [...ringEl.querySelectorAll('button[data-t]')];
 ringBtns.forEach((b, i) => {
   const a = -Math.PI / 2 + i * Math.PI * 2 / TYPES.length, x = Math.cos(a) * 96, y = Math.sin(a) * 96;
