@@ -25,7 +25,7 @@ npm run preview  # serves the built dist/
 | `src/patches.json` | In-game patch notes, newest first. The first entry is the version the title screen shows. |
 | `src/style.css` | All the styles. |
 | `src/art/` | Painted art as WebP files. `almanac/` holds tower forms (`arrow-1` … `drum-b`), enemies (`e_*`) and soldiers (`u_*`), which load automatically through `import.meta.glob`. See `docs/ART.md`. |
-| `docs/` | The roadmap and the art pipeline. |
+| `docs/` | The art pipeline. |
 
 ## Rules
 

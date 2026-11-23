@@ -10,6 +10,5 @@ npm run dev
 ```
 
 - Developer and agent guide: [AGENTS.md](AGENTS.md)
-- Roadmap: [docs/ROADMAP.md](docs/ROADMAP.md)
 - Art pipeline: [docs/ART.md](docs/ART.md)
 - Patch notes: [src/patches.json](src/patches.json), which are also shown in game
