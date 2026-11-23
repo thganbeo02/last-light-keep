@@ -319,3 +319,38 @@ export const MAPS = [
     },
   },
 ];
+
+export const LIQ = {
+  water: {
+    color: 4034518,
+    emissive: 733013,
+    opacity: 0.82,
+    bob: 0.045,
+    y: 0.55,
+    ground: 0.7,
+  },
+  lava: {
+    color: 16738842,
+    emissive: 16726528,
+    opacity: 1,
+    bob: 0.03,
+    y: 0.45,
+    ground: 0.6,
+  },
+  bog: {
+    color: 5204532,
+    emissive: 1187850,
+    opacity: 0.92,
+    bob: 0.02,
+    y: 0.5,
+    ground: 0.65,
+  },
+  ice: {
+    color: 13627130,
+    emissive: 2771546,
+    opacity: 0.95,
+    bob: 0,
+    y: 0.6,
+    ground: 0.75,
+  },
+};

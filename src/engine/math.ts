@@ -14,3 +14,6 @@ export function vnoise(x: number, z: number) {
 export const fbm = (x: number, z: number) => vnoise(x, z) * 0.6 + vnoise(x * 2.1 + 7, z * 2.1 + 3) * 0.3 + vnoise(x * 4.3, z * 4.3) * 0.1;
 
 export interface Vec2 { x: number; z: number }
+
+/** Eases angle a toward b by fraction t along the shorter way round. */
+export const lerpAngle = (a: number, b: number, t: number) => { const d = ((b - a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; return a + d * t; };

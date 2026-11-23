@@ -5788,6 +5788,8 @@ window.__towerXY = i => { const t = towers[i]; const v = new V3(t.x, 1.3, t.z).p
 document.body.classList.add('ready');
 // geometry of map i as built by buildMap (rebuilds the world): the engine's map test compares against this
 window.__mapInfo = i => { buildMap(i); return { plots: PLOTS.map(p => [p.gx, p.gz]), lens: PATHS.map(P => P.len), samples: SAMPLES.map(s => [s.x, s.z]), tiles: Array.from(T).join('') }; };
+// each enemy type's centre height above its feet (from its 3D model, scaled): the engine's enemies use it for 3D ranges
+window.__enemyDims = () => Object.fromEntries(Object.keys(ED).map(t => { const e = new Enemy(t, 0, 1, PATHS[0]); e.remove(); return [t, e.cy]; }));
 window.__g = () => ({ gold: game.gold, wave: game.wave, towers: towers.map(t => t.type + t.lvl).join(' '), hp: game.hp, state: game.state, en: enemies.length });
 window.__step = n => { for (let i = 0; i < n; i++) { updateGame(1 / 30); updateDirector(1 / 30); updateSky(1 / 30); } return game.state + ' ' + game.wave + ' ' + game.hp; };
 window.__shot = n => { startShot({ name: n, e: enemies.find(e => e.type === 'boss'), t: towers.find(t => t.target) || towers[0] }, true); for (let i = 0; i < 60; i++) { updateGame(1 / 30); updateDirector(1 / 30); } };

@@ -7,7 +7,7 @@ import { mainSource, readConst } from './main-source.ts';
 
 /** Which main.js constants go into which content file. */
 export const GROUPS: Record<string, string[]> = {
-  maps: ['MAPS'],
+  maps: ['MAPS', 'LIQ'], // LIQ: liquid looks; the engine reads only each kind's ground height
   enemies: ['ED', 'GROUPING', 'ATK', 'ATKX'],
   towers: ['TT', 'DTYPE', 'DNAME', 'SPEC', 'UPC', 'MORTAR_DEAD'], // RANKX is tooltip text: it moves with the UI
   barracks: ['BARR', 'SOL_INFO', 'SOL_REGEN', 'DRUM'],
