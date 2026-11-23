@@ -61,9 +61,6 @@ function apply(g: Game, i: Input) {
   }
 }
 
-/** The Watch mode AI, plugged in by src/engine/ai.ts; it thinks every .7 s. */
-export const watchAi: { think?: (g: Game) => void } = {};
-
 /** One fixed step. Returns the events it produced (the renderer plays them). */
 export function tick(g: Game, inputs: Input[] = [], dt = DT): GameEvent[] {
   g.events = [];
@@ -90,7 +87,7 @@ export function tick(g: Game, inputs: Input[] = [], dt = DT): GameEvent[] {
       g.gold += b; g.earned += b; g.clearPaid = true; g.events.push({ t: 'cleared', n: g.wave, bonus: b });
       if (has(g, 'kingdom.repair') && g.hp > 0) g.hp = Math.min(g.maxHp, g.hp + 2);
     }
-    if (g.mode !== 'play') { g.aiT -= dt; if (g.aiT <= 0) { g.aiT = 0.7; watchAi.think?.(g); } }
+    if (g.mode !== 'play') { g.aiT -= dt; if (g.aiT <= 0) { g.aiT = 0.7; g.ai?.(g); } } // the AI player thinks every .7 s
   }
   for (const e of g.enemies) if (e.alive) updateEnemy(g, e, dt);
   for (const s of g.soldiers) if (s.alive) updateSoldier(g, s, dt);

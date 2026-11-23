@@ -55,6 +55,8 @@ export interface Game {
   wave: number; gold: number; earned: number; defeated: number; built: number;
   /** the wave queue, the time to the next spawn, the countdown to the next wave (play), Watch mode's pacing and AI timer */
   spawnQ: Spawn[]; spawnT: number; sinceSpawn: number; countdown: number; clearPaid: boolean; waveGap: number; aiT: number;
+  /** Watch mode's player (src/engine/ai.ts aiThink) */
+  ai?: (g: Game) => void;
   hp: number; maxHp: number; soulHeal: number; standUsed: boolean; standT: number; slitT: number;
   nextId: number;
   enemies: Enemy[];
