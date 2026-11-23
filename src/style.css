@@ -155,6 +155,8 @@ body:not(.ready) #title .t-btns{display:none} body.ready .t-load{display:none}
 #spells .sp.on{border-color:#f2c14e;box-shadow:0 4px 0 #2a1608,0 0 0 4px rgba(242,193,78,.55)}
 #spells .sp.cool{filter:saturate(.5)}
 @media (max-width:700px){#spells{bottom:calc(80px + env(safe-area-inset-bottom,0px))}#spells .sp{width:62px;height:62px}#spells .sp img{width:52px;height:52px}}
+/* on phones the wave panel wraps to two rows (about 110px), so the spells sit above it with room for their name plates */
+@media (max-width:520px){#spells{bottom:calc(150px + env(safe-area-inset-bottom,0px))}#spells .sp-n{max-width:64px}}
 #ctrl .sq{min-width:46px;background:var(--panel)}
 #bmenu{right:calc(10px + env(safe-area-inset-right,0px));bottom:calc(10px + env(safe-area-inset-bottom,0px));background:var(--panel)}
 #ring,#tring{left:0;top:0;width:0;height:0}
