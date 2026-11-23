@@ -7,6 +7,7 @@ import { UNLOCKS } from '../content/campaign.ts';
 import type { Enemy } from './enemies.ts';
 import type { FirePatch, IcePatch, Projectile } from './projectiles.ts';
 import type { Soldier } from './soldiers.ts';
+import type { CatapultFx, SpellKey } from './spells.ts';
 import type { Gate, Spot, Tower } from './towers.ts';
 
 export type Mode = 'play' | 'watch';
@@ -31,7 +32,8 @@ export type GameEvent =
   | { t: 'blast'; at: { x: number; y: number; z: number }; r: number }
   | { t: 'soldierDown'; s: Soldier }
   | { t: 'holy'; s: Soldier; e: Enemy }
-  | { t: 'enemyHit'; e: Enemy; s: Soldier };
+  | { t: 'enemyHit'; e: Enemy; s: Soldier }
+  | { t: 'cast'; k: SpellKey; at: { x: number; z: number } };
 
 export interface Game {
   rng: Rng; time: number;
@@ -53,10 +55,12 @@ export interface Game {
   spots: Spot[];
   towers: Tower[]; soldiers: Soldier[];
   projs: Projectile[]; firePatches: FirePatch[]; icePatches: IcePatch[];
+  /** spells open in this battle, cooldowns left, catapults in flight, and whether any spell was cast (3.x records it but never reads it) */
+  spells: SpellKey[]; scd: Record<string, number>; spellFx: CatapultFx[]; spellUsed: boolean;
   events: GameEvent[];
 }
 
-export interface GameOptions { map: number; mode?: Mode; seed?: number; diff?: number; dmgMul?: number; skills?: Iterable<string>; gate?: number }
+export interface GameOptions { map: number; mode?: Mode; seed?: number; diff?: number; dmgMul?: number; skills?: Iterable<string>; gate?: number; spells?: SpellKey[] }
 
 export function makeGame(o: GameOptions): Game {
   const def = MAPS[o.map], liq = def.liquid as { kind: keyof typeof LIQ } | null, map = buildMap(o.map);
@@ -70,7 +74,9 @@ export function makeGame(o: GameOptions): Game {
     hp: 100, maxHp: 100, soulHeal: 0, standUsed: false, standT: 0, slitT: 0,
     nextId: 1, enemies: [],
     spots: map.plots.map(p => ({ ...p, used: false, block: 0 })), towers: [], soldiers: [],
-    projs: [], firePatches: [], icePatches: [], events: [],
+    projs: [], firePatches: [], icePatches: [],
+    spells: o.mode === 'watch' ? [] : o.spells ?? [], scd: {}, spellFx: [], spellUsed: false,
+    events: [],
   };
 }
 

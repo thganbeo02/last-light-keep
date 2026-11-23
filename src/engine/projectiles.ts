@@ -16,6 +16,7 @@ export type Projectile =
   | { k: 'arrow'; s: P3; e: Enemy; last: P3; dmg: number; big: boolean; o: ArrowOpts; T: number; t: number; arc: number }
   | { k: 'ball'; s: P3; aim: P3; dmg: number; splash: number; cluster: boolean; o: BallOpts; T: number; t: number; arc: number }
   | { k: 'bomblet'; s: P3; aim: P3; dmg: number; T: number; t: number }
+  | { k: 'boulder'; s: P3; aim: P3; dmg: number; T: number; t: number }
   | { k: 'shard'; p: P3; e: Enemy; last: P3; dmg: number; lvl: number; spec: SpecKey | null; tw: Tower | null };
 
 export interface FirePatch { x: number; z: number; t: number; tick: number }
@@ -87,6 +88,12 @@ function step(g: Game, p: Projectile, dt: number): boolean {
     }
     if (o.shock) for (const e of g.enemies) if (e.alive && !e.def.air && (e.x - p.aim.x) ** 2 + (e.z - p.aim.z) ** 2 < 1.44) e.stun = Math.max(e.stun, 1); // Shaker
     g.events.push({ t: 'blast', at: p.aim, r: p.splash });
+    return false;
+  }
+  if (p.k === 'boulder') { // Catapult Barrage: 60 and a .5 s stun to ground enemies within 1.1
+    p.t += dt; if (p.t < p.T) return true;
+    for (const e of g.enemies) if (e.alive && !e.def.air && (e.x - p.aim.x) ** 2 + (e.z - p.aim.z) ** 2 < 1.2) { hurt(g, e, p.dmg, 'phys'); if (e.alive) e.stun = Math.max(e.stun, 0.5); }
+    g.events.push({ t: 'blast', at: p.aim, r: 1.1 });
     return false;
   }
   if (p.k === 'bomblet') {
