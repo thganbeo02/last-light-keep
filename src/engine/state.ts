@@ -2,8 +2,9 @@
 // plays the events.
 import { LIQ, MAPS } from '../content/maps.ts';
 import { buildMap, H, W, type MapGeo } from './map.ts';
-import { makeRng, type Rng } from './rng.ts';
-import { UNLOCKS } from '../content/campaign.ts';
+import { makeRng, range, type Rng } from './rng.ts';
+import type { Spawn } from './waves.ts';
+import { DIFFS, UNLOCKS } from '../content/campaign.ts';
 import type { Enemy } from './enemies.ts';
 import type { FirePatch, IcePatch, Projectile } from './projectiles.ts';
 import type { Soldier } from './soldiers.ts';
@@ -33,7 +34,10 @@ export type GameEvent =
   | { t: 'soldierDown'; s: Soldier }
   | { t: 'holy'; s: Soldier; e: Enemy }
   | { t: 'enemyHit'; e: Enemy; s: Soldier }
-  | { t: 'cast'; k: SpellKey; at: { x: number; z: number } };
+  | { t: 'cast'; k: SpellKey; at: { x: number; z: number } }
+  | { t: 'wave'; n: number; bosses: number }
+  | { t: 'cleared'; n: number; bonus: number }
+  | { t: 'victory'; stars: number };
 
 export interface Game {
   rng: Rng; time: number;
@@ -49,6 +53,8 @@ export interface Game {
   /** which towers, levels and specialisations the campaign has opened (UNLOCKS) */
   gate: Gate;
   wave: number; gold: number; earned: number; defeated: number; built: number;
+  /** the wave queue, the time to the next spawn, the countdown to the next wave (play), Watch mode's pacing and AI timer */
+  spawnQ: Spawn[]; spawnT: number; sinceSpawn: number; countdown: number; clearPaid: boolean; waveGap: number; aiT: number;
   hp: number; maxHp: number; soulHeal: number; standUsed: boolean; standT: number; slitT: number;
   nextId: number;
   enemies: Enemy[];
@@ -60,17 +66,20 @@ export interface Game {
   events: GameEvent[];
 }
 
-export interface GameOptions { map: number; mode?: Mode; seed?: number; diff?: number; dmgMul?: number; skills?: Iterable<string>; gate?: number; spells?: SpellKey[] }
+export interface GameOptions { map: number; mode?: Mode; seed?: number; diff?: number; dmgMul?: number; skills?: Iterable<string>; gate?: number; spells?: SpellKey[];
+  /** a played battle's difficulty: sets diff and dmgMul from DIFFS (casual 1×, normal 1.25×, impossible 1.5×) */
+  difficulty?: 'casual' | 'normal' | 'impossible' }
 
 export function makeGame(o: GameOptions): Game {
   const def = MAPS[o.map], liq = def.liquid as { kind: keyof typeof LIQ } | null, map = buildMap(o.map);
-  return {
+  const g: Game = {
     rng: makeRng(o.seed ?? 1), time: 0,
     map, def, liquidGround: liq ? LIQ[liq.kind].ground : null,
-    mode: o.mode ?? 'play', diff: o.diff ?? 1, dmgMul: o.dmgMul ?? 1, dotMul: 1,
+    mode: o.mode ?? 'play', diff: o.diff ?? DIFFS.find(d => d.k === o.difficulty)?.mul ?? 1, dmgMul: o.dmgMul ?? DIFFS.find(d => d.k === o.difficulty)?.dmg ?? 1, dotMul: 1,
     skills: new Set(o.mode === 'watch' ? [] : o.skills ?? []), // Watch mode plays without the War Council
     gate: UNLOCKS[o.mode === 'watch' ? UNLOCKS.length - 1 : o.gate ?? UNLOCKS.length - 1], // Watch mode has everything open
     state: 'play', wave: 0, gold: 0, earned: 0, defeated: 0, built: 0,
+    spawnQ: [], spawnT: 0, sinceSpawn: 0, countdown: 25, clearPaid: true, waveGap: 0, aiT: 0,
     hp: 100, maxHp: 100, soulHeal: 0, standUsed: false, standT: 0, slitT: 0,
     nextId: 1, enemies: [],
     spots: map.plots.map(p => ({ ...p, used: false, block: 0 })), towers: [], soldiers: [],
@@ -78,6 +87,11 @@ export function makeGame(o: GameOptions): Game {
     spells: o.mode === 'watch' ? [] : o.spells ?? [], scd: {}, spellFx: [], spellUsed: false,
     events: [],
   };
+  // starting gold and castle health; Watch mode instead picks a random toughness and builds its own opening (src/engine/ai.ts)
+  if (g.mode === 'play') g.gold = def.gold + (has(g, 'kingdom.root') ? 10 : 0) + (has(g, 'kingdom.chest') ? 20 : 0) + (has(g, 'kingdom.treasury') ? 50 : 0);
+  else if (o.diff == null) g.diff = range(g.rng, 0.85, 1.25) / 1.3;
+  g.maxHp = g.hp = 100 + (has(g, 'kingdom.walls') ? 10 : 0);
+  return g;
 }
 
 /** War Council pick check, like main.js skH. */

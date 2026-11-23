@@ -89,7 +89,7 @@ describe('damage', () => {
   it('a kill pays reward × 1.6, +5% per wave after the first, +6% with Tax', () => {
     const g = game(); g.wave = 5; const e = one(g, 'brute');
     expect(killReward(g, e)).toBe(Math.round(15 * 1.6 * 1.2));
-    hurt(g, e, 1e6); expect(g.gold).toBe(Math.round(15 * 1.6 * 1.2)); expect(g.defeated).toBe(1);
+    const gold = g.gold; hurt(g, e, 1e6); expect(g.gold - gold).toBe(Math.round(15 * 1.6 * 1.2)); expect(g.defeated).toBe(1);
     const t = game({ skills: ['kingdom.tax'] }); t.wave = 5; expect(killReward(t, one(t, 'brute'))).toBe(Math.round(15 * 1.6 * 1.2 * 1.06));
   });
   it('Static Charge, Shatter and Wildfire hit neighbours when an enemy dies', () => {
