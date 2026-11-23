@@ -165,6 +165,7 @@ body:not(.ready) #title .t-btns{display:none} body.ready .t-load{display:none}
 #ring .rb:hover:not(:disabled),#tring .rb:hover:not(:disabled){background:var(--c,#4a3a2a);transform:scale(1.08);border-color:#f2c14e}
 #ring .rb.sel,#tring .rb.sel{border-color:#f2c14e;box-shadow:0 0 0 4px rgba(255,215,122,.7),0 4px 0 #2e1b0d}
 #ring .rb.poor,#tring .rb.poor{filter:grayscale(.55) brightness(.85)}
+#ring .rb img.rt{width:58px;height:58px;object-fit:contain;pointer-events:none;filter:drop-shadow(0 2px 1px rgba(0,0,0,.45))}
 #ring .rb.x{width:36px;height:36px;margin:-18px 0 0 -18px;border-width:3px;background:#3a2414}
 #tring .rb.up{--c:#2f7a2a;border-color:#f2c14e;width:72px;height:72px;margin:-36px 0 0 -36px}
 #tring .rb.up:disabled{--c:#7a5a1a;opacity:1;color:#ffe08a}
