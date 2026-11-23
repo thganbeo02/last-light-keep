@@ -2813,7 +2813,11 @@ class Soldier {
   // where to stand around an enemy, so several soldiers on one enemy fan out instead of stacking
   fanSpot(e) {
     const mates = soldiers.filter(s => s.alive && s.target === e && !(s.st.ranged && s.tw.rally.over)), n = mates.length, k = Math.max(0, mates.indexOf(this));
-    const ex = e.g.position.x, ez = e.g.position.z; let ax = this.g.position.x - ex, az = this.g.position.z - ez; const l = Math.hypot(ax, az) || 1; ax /= l; az /= l;
+    const ex = e.g.position.x, ez = e.g.position.z;
+    // fan out around a direction fixed when the fight starts. Measured from this soldier's own position, the spot
+    // moved every time the soldier did, so two or more soldiers circled the enemy forever and it spun to follow them.
+    if (!e.fan || game.time - e.fan.t > .5) { let ax = this.g.position.x - ex, az = this.g.position.z - ez; const l = Math.hypot(ax, az) || 1; e.fan = { x: ax / l, z: az / l, t: 0 }; }
+    e.fan.t = game.time; const ax = e.fan.x, az = e.fan.z;
     const a = (k - (n - 1) / 2) * .85, c = Math.cos(a), s2 = Math.sin(a);
     return { x: ex + (ax * c - az * s2) * .7, z: ez + (ax * s2 + az * c) * .7 };
   }
