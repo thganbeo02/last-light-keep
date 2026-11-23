@@ -20,5 +20,5 @@
     - Actions: `action-build`, `action-rally`, `action-sell`, `action-targeting`, `action-upgrade`.
     - Specialisations: `volley`, `longbow`, `inferno`, `storm`, `overload`, `siege-mortar`, `scattergun`, `deep-freeze`, `glacier-field`, `fireline`, `paladins`, `rangers`, `war-horn`, `hex-totem`.
     - The originals (1254 px PNG) stay outside the repo.
-- [ ] **Spell icons.** Militia Call, Catapult Barrage, Frost Nova.
+- [x] **Spell icons** in `src/art/spells/` (`militia`, `catapult`, `nova`): white background removed, 256 px WebP. The spell bar uses them. Taken from `spell-militiaman`, `spell-boulder-barrage-v2` and `spell-frost-burst`. Three other Frost Nova variants are unused.
 - [ ] **Captain Hollis Brannock portraits, 4 expressions.** Name each file `brannock-<expression>.webp`.

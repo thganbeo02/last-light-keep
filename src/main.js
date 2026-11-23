@@ -4260,6 +4260,8 @@ const SPELLS = {
   nova: { name: 'Frost Nova', cd: 60, r: 2.5, col: 0x7ad8ff, desc: 'Freezes ground enemies within 2.5 tiles for 2.5 s. Bosses are slowed instead.', icon: '<path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7M9 4l3 2 3-2M9 20l3-2 3 2"/><circle cx="12" cy="12" r="3"/>' },
 };
 const SPELL_KEYS = ['militia', 'catapult', 'nova'];
+// painted spell art (src/art/spells/<key>.webp)
+const SPELL_ART = Object.fromEntries(Object.entries(import.meta.glob('./art/spells/*.webp', { eager: true, import: 'default' })).map(([p, url]) => [p.split('/').pop().slice(0, -5), url]));
 const spellsFor = (i, dev) => SPELL_KEYS.filter(k => dev || (k === 'nova' ? i >= 7 : i >= 1));
 const MILITIA = { n: 2, unit: 'militia', hp: 50, dmg: 4, rate: 1, armor: 0, mr: 0, resp: 99, rad: 2.5 };
 const rockMat = M(0x8a8478);
@@ -4342,7 +4344,7 @@ function spellsTick(dt) {
 }
 function renderSpells() {
   const ks = game.spells || [];
-  $('spells').innerHTML = ks.map((k, i) => `<button type="button" id="sp-${k}" class="sp${ui.spell === k ? ' on' : ''}" data-k="${k}" aria-label="${SPELLS[k].name}: ${SPELLS[k].desc} Key ${i + 1}" title="${SPELLS[k].name} (${i + 1}): ${SPELLS[k].desc}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SPELLS[k].icon}</svg><span class="sp-n">${SPELLS[k].name}</span><span class="sp-t"></span><kbd>${i + 1}</kbd></button>`).join('');
+  $('spells').innerHTML = ks.map((k, i) => `<button type="button" id="sp-${k}" class="sp${ui.spell === k ? ' on' : ''}" data-k="${k}" aria-label="${SPELLS[k].name}: ${SPELLS[k].desc} Key ${i + 1}" title="${SPELLS[k].name} (${i + 1}): ${SPELLS[k].desc}"><img src="${SPELL_ART[k]}" alt="" draggable="false"><span class="sp-n">${SPELLS[k].name}</span><span class="sp-t"></span><kbd>${i + 1}</kbd></button>`).join('');
 }
 function pickSpell(k) {
   if (game.mode !== 'play' || game.state !== 'play' || !(game.spells || []).includes(k)) return;

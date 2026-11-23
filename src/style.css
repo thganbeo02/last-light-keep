@@ -145,16 +145,16 @@ body:not(.ready) #title .t-btns{display:none} body.ready .t-load{display:none}
 #bsend small{font-weight:500;color:#d8f5cc;font-size:11px}
 #bprev{display:flex;gap:7px;flex-wrap:wrap;font-size:11px;font-weight:500;color:#e8ffe0}
 #bprev i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:3px;vertical-align:0}
-#spells{left:calc(10px + env(safe-area-inset-left,0px));bottom:calc(10px + env(safe-area-inset-bottom,0px));display:flex;gap:10px}
+#spells{left:calc(10px + env(safe-area-inset-left,0px));bottom:calc(34px + env(safe-area-inset-bottom,0px));display:flex;gap:14px}
 #spells .sp{position:relative;width:74px;height:74px;padding:0;border-radius:50%;border:4px solid #4a2f14;background:radial-gradient(circle at 50% 35%,#a8783a,#5a3a1e);color:#fff3c8;display:grid;place-items:center;box-shadow:0 4px 0 #2a1608;overflow:visible}
-#spells .sp svg{width:34px;height:34px;margin-top:-10px}
-#spells .sp-n{position:absolute;bottom:9px;left:0;right:0;font:400 8.5px/1 var(--disp);text-align:center;color:#fff3c8;text-shadow:0 1px 0 #2a1608}
+#spells .sp img{width:62px;height:62px;object-fit:contain;pointer-events:none;filter:drop-shadow(0 2px 1px rgba(42,22,8,.6))}
+#spells .sp-n{position:absolute;top:calc(100% - 4px);left:50%;transform:translateX(-50%);z-index:1;width:max-content;max-width:84px;text-align:center;line-height:1.15;padding:3px 6px;border-radius:6px;background:#2a1608;border:1px solid #6b4a22;font-family:var(--disp);font-size:9px;color:#fff3c8}
 #spells .sp::before{content:"";position:absolute;inset:-4px;border-radius:50%;background:conic-gradient(rgba(10,6,2,.72) var(--p,0%),transparent 0);pointer-events:none}
 #spells .sp-t{position:absolute;inset:0;display:grid;place-items:center;font:400 22px/1 var(--disp);color:#fff;text-shadow:0 2px 0 #000;pointer-events:none}
 #spells .sp kbd{position:absolute;top:-6px;right:-6px;font:400 10px/1 var(--disp);background:#2a1608;color:#f2c14e;border-radius:6px;padding:3px 5px;border:2px solid #f2c14e}
 #spells .sp.on{border-color:#f2c14e;box-shadow:0 4px 0 #2a1608,0 0 0 4px rgba(242,193,78,.55)}
 #spells .sp.cool{filter:saturate(.5)}
-@media (max-width:700px){#spells{bottom:calc(66px + env(safe-area-inset-bottom,0px))}#spells .sp{width:62px;height:62px}#spells .sp svg{width:28px;height:28px}}
+@media (max-width:700px){#spells{bottom:calc(80px + env(safe-area-inset-bottom,0px))}#spells .sp{width:62px;height:62px}#spells .sp img{width:52px;height:52px}}
 #ctrl .sq{min-width:46px;background:var(--panel)}
 #bmenu{right:calc(10px + env(safe-area-inset-right,0px));bottom:calc(10px + env(safe-area-inset-bottom,0px));background:var(--panel)}
 #ring,#tring{left:0;top:0;width:0;height:0}
