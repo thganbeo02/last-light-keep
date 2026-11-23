@@ -1,14 +1,14 @@
 // The whole battle as plain data. The engine mutates it in place, tick by tick; the renderer only reads it and
-// plays the events. Systems not ported yet (towers, soldiers) appear here as the minimum other systems touch.
+// plays the events.
 import { LIQ, MAPS } from '../content/maps.ts';
 import { buildMap, H, W, type MapGeo } from './map.ts';
 import { makeRng, type Rng } from './rng.ts';
+import { UNLOCKS } from '../content/campaign.ts';
 import type { Enemy } from './enemies.ts';
+import type { FirePatch, IcePatch, Projectile } from './projectiles.ts';
+import type { Gate, Spot, Tower } from './towers.ts';
 
 export type Mode = 'play' | 'watch';
-
-/** What a tower must expose to the enemy systems until towers are ported (the Sapper's charge knocks one out). */
-export interface TowerRef { id: number; type: string; x: number; z: number; stunT: number }
 
 export type GameEvent =
   | { t: 'spawn'; e: Enemy }
@@ -19,11 +19,15 @@ export type GameEvent =
   | { t: 'heal'; e: Enemy; n: number }
   | { t: 'roar'; e: Enemy }
   | { t: 'shrug'; e: Enemy }
-  | { t: 'planting'; e: Enemy; tower: TowerRef }
-  | { t: 'planted'; e: Enemy; tower: TowerRef }
+  | { t: 'planting'; e: Enemy; tower: Tower }
+  | { t: 'planted'; e: Enemy; tower: Tower }
   | { t: 'staticCharge'; e: Enemy }
   | { t: 'shatter'; e: Enemy }
-  | { t: 'shield'; e: Enemy };
+  | { t: 'shield'; e: Enemy }
+  | { t: 'build' | 'upgrade' | 'specialise'; tower: Tower }
+  | { t: 'sell'; tower: Tower; refund: number }
+  | { t: 'fire'; tower: Tower; target: Enemy }
+  | { t: 'blast'; at: { x: number; y: number; z: number }; r: number };
 
 export interface Game {
   rng: Rng; time: number;
@@ -36,26 +40,33 @@ export interface Game {
   dotMul: number;
   skills: Set<string>;
   state: 'play' | 'victory' | 'fallen';
-  wave: number; gold: number; earned: number; defeated: number;
+  /** which towers, levels and specialisations the campaign has opened (UNLOCKS) */
+  gate: Gate;
+  wave: number; gold: number; earned: number; defeated: number; built: number;
   hp: number; maxHp: number; soulHeal: number; standUsed: boolean; standT: number;
   nextId: number;
   enemies: Enemy[];
-  towers: TowerRef[];
+  spots: Spot[];
+  towers: Tower[];
+  projs: Projectile[]; firePatches: FirePatch[]; icePatches: IcePatch[];
   events: GameEvent[];
 }
 
-export interface GameOptions { map: number; mode?: Mode; seed?: number; diff?: number; dmgMul?: number; skills?: Iterable<string> }
+export interface GameOptions { map: number; mode?: Mode; seed?: number; diff?: number; dmgMul?: number; skills?: Iterable<string>; gate?: number }
 
 export function makeGame(o: GameOptions): Game {
-  const def = MAPS[o.map], liq = def.liquid as { kind: keyof typeof LIQ } | null;
+  const def = MAPS[o.map], liq = def.liquid as { kind: keyof typeof LIQ } | null, map = buildMap(o.map);
   return {
     rng: makeRng(o.seed ?? 1), time: 0,
-    map: buildMap(o.map), def, liquidGround: liq ? LIQ[liq.kind].ground : null,
+    map, def, liquidGround: liq ? LIQ[liq.kind].ground : null,
     mode: o.mode ?? 'play', diff: o.diff ?? 1, dmgMul: o.dmgMul ?? 1, dotMul: 1,
     skills: new Set(o.mode === 'watch' ? [] : o.skills ?? []), // Watch mode plays without the War Council
-    state: 'play', wave: 0, gold: 0, earned: 0, defeated: 0,
+    gate: UNLOCKS[o.mode === 'watch' ? UNLOCKS.length - 1 : o.gate ?? UNLOCKS.length - 1], // Watch mode has everything open
+    state: 'play', wave: 0, gold: 0, earned: 0, defeated: 0, built: 0,
     hp: 100, maxHp: 100, soulHeal: 0, standUsed: false, standT: 0,
-    nextId: 1, enemies: [], towers: [], events: [],
+    nextId: 1, enemies: [],
+    spots: map.plots.map(p => ({ ...p, used: false, block: 0 })), towers: [],
+    projs: [], firePatches: [], icePatches: [], events: [],
   };
 }
 

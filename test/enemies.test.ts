@@ -3,6 +3,7 @@ import { ED } from '../src/content/enemies.ts';
 import { centreDist2, hurt, killReward, spawnEnemy, updateEnemy, type Enemy } from '../src/engine/enemies.ts';
 import { smoothPath } from '../src/engine/map.ts';
 import { makeGame, type Game, type GameOptions } from '../src/engine/state.ts';
+import { buildTower } from '../src/engine/towers.ts';
 import type { EnemyType } from '../src/engine/waves.ts';
 
 const DT = 1 / 30;
@@ -127,8 +128,8 @@ describe('specials', () => {
     r.slow = 3; updateEnemy(g, r, DT); expect(r.slow).toBeCloseTo(3 - DT);
   });
   it('a Sapper stops by the first tower in reach and knocks it out for 5 s', () => {
-    const g = game(), s = one(g, 'sapper', 10), tower = { id: 1, type: 'arrow', x: s.x + 1, z: s.z + 1, stunT: 0 };
-    g.towers.push(tower);
+    const g = game(), s = one(g, 'sapper', 10), tower = buildTower(g, 'arrow', 0, { free: true, instant: true })!;
+    tower.x = s.x + 1; tower.z = s.z + 1; // put it right by the sapper
     updateEnemy(g, s, DT); expect(s.plantT).toBe(0.9);
     const d0 = s.d; run(g, s, 0.85);
     expect(s.d).toBe(d0); expect(tower.stunT).toBe(0); // still planting, standing still

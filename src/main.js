@@ -5790,6 +5790,20 @@ document.body.classList.add('ready');
 window.__mapInfo = i => { buildMap(i); return { plots: PLOTS.map(p => [p.gx, p.gz]), lens: PATHS.map(P => P.len), samples: SAMPLES.map(s => [s.x, s.z]), tiles: Array.from(T).join('') }; };
 // each enemy type's centre height above its feet (from its 3D model, scaled): the engine's enemies use it for 3D ranges
 window.__enemyDims = () => Object.fromEntries(Object.keys(ED).map(t => { const e = new Enemy(t, 0, 1, PATHS[0]); e.remove(); return [t, e.cy]; }));
+// muzzle height above the ground for each attacking tower form (level 1-3, specialisation a/b at rank 1-3), from the
+// models: the engine fires projectiles from that height
+window.__muzzles = () => { const out = {}; for (const type of ['arrow', 'cannon', 'frost', 'tesla', 'flame']) { const t = new Tower(type, { x: 0, z: 0, gx: -1, gz: -1 }, true, true), r = {};
+  const y = () => { t.g.updateMatrixWorld(true); const ms = t.muzzles || [t.muzzle]; return ms.reduce((a, m) => a + m.getWorldPosition(new V3()).y, 0) / ms.length - 1; };
+  for (const L of [1, 2, 3]) { t.lvl = L; t.build(); r[L] = y(); }
+  for (const k of ['a', 'b']) for (const R of [1, 2, 3]) { t.spec = k; t.lvl = 4; t.rank = R; t.build(); r[k + R] = y(); }
+  t.remove(); out[type] = r; } return out; };
+// stats of every attacking tower form, with the given War Council picks (none by default), plus upgrade and rank
+// costs: the engine's tower test compares against this
+window.__towerStats = (ids = []) => { SKILL_VIEW = { has: new Set(ids) }; const out = {};
+  for (const type of ['arrow', 'cannon', 'frost', 'tesla', 'flame']) { const r = out[type] = { up: UPC[type], rank: {} };
+    for (const L of [1, 2, 3]) r[L] = tStat(type, L);
+    for (const k of ['a', 'b']) for (const R of [1, 2, 3]) { r[k + R] = specStat(type, k, R); if (R > 1) r.rank[k + R] = rankCost(type, k, R); } }
+  out.sell = sellRate(); out.mortarDead = mortarDead(); SKILL_VIEW = null; return out; };
 window.__g = () => ({ gold: game.gold, wave: game.wave, towers: towers.map(t => t.type + t.lvl).join(' '), hp: game.hp, state: game.state, en: enemies.length });
 window.__step = n => { for (let i = 0; i < n; i++) { updateGame(1 / 30); updateDirector(1 / 30); updateSky(1 / 30); } return game.state + ' ' + game.wave + ' ' + game.hp; };
 window.__shot = n => { startShot({ name: n, e: enemies.find(e => e.type === 'boss'), t: towers.find(t => t.target) || towers[0] }, true); for (let i = 0; i < 60; i++) { updateGame(1 / 30); updateDirector(1 / 30); } };

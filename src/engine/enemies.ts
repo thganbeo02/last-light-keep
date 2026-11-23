@@ -7,7 +7,8 @@ import { lerpAngle } from './math.ts';
 import { enemyCombat } from './combat.ts';
 import { smoothPath } from './map.ts';
 import { range } from './rng.ts';
-import { groundY, has, type Game, type TowerRef } from './state.ts';
+import { groundY, has, type Game } from './state.ts';
+import type { Tower } from './towers.ts';
 import { hpMul, type EnemyType } from './waves.ts';
 
 export type DamageKind = 'phys' | 'magic' | 'true';
@@ -20,10 +21,10 @@ export interface Enemy {
   // status timers, in seconds unless noted
   slow: number; slowF: number; freeze: number; stun: number; burn: number;
   sunder: number; brittle: number; iceBrittle: boolean; shockT: number; shockDmg: number;
-  hex: number; markT: number;
+  hex: number; markT: number; bleedT: number;
   // specials
   healT: number; roared: boolean; shrug: boolean; lastSlow: number;
-  planted: boolean; plantT: number; plantOn: TowerRef | null;
+  planted: boolean; plantT: number; plantOn: Tower | null;
   // melee with soldiers (filled in by the Barracks port)
   fighting: boolean; faceT: number | null;
 }
@@ -49,7 +50,7 @@ export function spawnEnemy(g: Game, type: EnemyType, d = 0, path = 0): Enemy {
     id: g.nextId++, type, def, path, d, lat: range(g.rng, -0.55, 0.55) * (big ? 0.2 : 1), seed: range(g.rng, 0, 100),
     x: 0, y: 0, z: 0, cy: ENEMY_CY[type], heading: 0,
     hp, maxHp: hp, alive: true,
-    slow: 0, slowF: 1, freeze: 0, stun: 0, burn: 0, sunder: 0, brittle: 0, iceBrittle: false, shockT: 0, shockDmg: 0, hex: 0, markT: 0,
+    slow: 0, slowF: 1, freeze: 0, stun: 0, burn: 0, sunder: 0, brittle: 0, iceBrittle: false, shockT: 0, shockDmg: 0, hex: 0, markT: 0, bleedT: 0,
     healT: range(g.rng, 0.5, 2), roared: false, shrug: false, lastSlow: 0,
     planted: false, plantT: 0, plantOn: null,
     fighting: false, faceT: null,
