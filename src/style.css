@@ -114,8 +114,8 @@ li.pl-b:not(:has(.pn-new)){color:#9ee89a}li.pl-n:not(:has(.pn-new)){color:#ffa89
 #title::after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(to bottom,rgba(20,12,40,.15),rgba(0,0,0,0) 30%,rgba(0,0,0,0) 55%,rgba(16,8,4,.65))}
 #title .t-logo{margin:0;width:min(420px,33vw,46vh);line-height:0;filter:drop-shadow(0 8px 14px rgba(20,8,40,.55));animation:tLogo .9s cubic-bezier(.2,1.4,.4,1) both}
 #title .t-logo img{width:100%;height:auto}
-#title .t-word{line-height:.9;text-align:center;font:400 clamp(40px,7vw,84px)/.9 var(--disp);color:#ffd77a;text-shadow:0 4px 0 #7a4a10,0 0 30px rgba(255,170,60,.6)}
-#title .t-word span{display:block;font-size:1.35em;color:#fff1c8}
+#title .t-word{width:auto;white-space:nowrap;text-align:center;font:400 clamp(26px,6.4vw,72px)/1 var(--disp);color:#ffd77a;text-shadow:0 4px 0 #7a4a10,0 0 30px rgba(255,170,60,.6)}
+#title .t-word span{color:#fff1c8}
 #title .t-panel{max-width:420px;background:rgba(28,16,8,.72);border:2px solid rgba(242,193,78,.45)}
 #title .t-panel .sub{color:#f4e2b8;font:400 17px/1.25 var(--disp);letter-spacing:.02em}
 #title .t-panel .hint{color:#d8c4a0;font:400 12.5px/1.5 var(--disp);letter-spacing:.03em}
