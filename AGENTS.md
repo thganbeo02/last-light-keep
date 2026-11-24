@@ -50,6 +50,12 @@ npm run extract  # copies balance constants from src/main.js into src/content/
 - Test hooks on `window`: `__g()` returns the game state, `__step(n)` runs n ticks at 30 per second, `__probe(s)` simulates s seconds, `__shot(name)` takes a camera shot, `__enemyDims()` returns each enemy type's centre height, `__muzzles()` each tower form's muzzle height, `__towerStats(ids)` every attacking tower form's stats and costs with the given War Council picks, `__barrStats(ids)` every Barracks form's soldier stats, `__drumStats(ids)` every War Drum form's stats, `__watchRun(i)` plays a whole Watch battle on map i and reports how it ended (the source of `test/baseline.json`), and `__mapInfo(i)` rebuilds map i and returns its plots, path lengths, samples and tiles (the source of `test/fixtures/maps-3x.json`). Use them to check a change in the browser without playing by hand.
 - Testing mode: on the world map, tap the star counter 5 times. Every level, tower and spell opens (`save.dev`).
 
+## Wrap up
+
+- An explicit **“wrap up”** authorizes one focused Git commit for the current task. Otherwise, commit only when the user asks. Preserve unrelated work, including changes already staged.
+- Finish the task, run the relevant checks and `git diff --check`, and add a short dated entry to `CHANGELOG.md` (create it if needed). Record what changed, the checks run, and any known limitations. Stage and commit only the task's changes, then summarize the outcome and give the commit hash.
+- Version bumps, Git pushes, and Claude artifact publishing each require a separate explicit request. The user can combine requests in one message, such as **“wrap up and publish to the artifact.”**
+
 ## Publishing
 
 Keep the version fixed during development, local builds, and previews. Bump the `v` shown in game once per batch, before the release build, when the user asks for a versioned release or explicitly requests a bump. Publishing small fixes can reuse the current version.
