@@ -227,7 +227,7 @@ export function updateTower(g: Game, t: Tower, dt: number) {
     if (src) {
       let nb: Enemy | null = null, nd = 4;
       for (const o of g.enemies) { if (!o.alive || o === src || o.def.air || o.burn > 0) continue; const d2 = centreDist2(o, src); if (d2 < nd) { nd = d2; nb = o; } }
-      if (nb) { t.cd.flashover = 1.5; nb.burn = ab.brand ? 4 : 1.6; hurt(g, nb, st.dmg * 3, 'true'); }
+      if (nb) { t.cd.flashover = 1.5; g.events.push({ t: 'flashover', tower: t, from: src, e: nb }); nb.burn = ab.brand ? 4 : 1.6; hurt(g, nb, st.dmg * 3, 'true'); }
     }
   }
   t.retarget -= dt;
@@ -237,7 +237,7 @@ export function updateTower(g: Game, t: Tower, dt: number) {
   t.cool -= dt;
   if (!e || t.cool > 0) return;
   t.cool = st.rate; t.shots++;
-  g.events.push({ t: 'fire', tower: t, target: e });
+  const fire: { t: 'fire'; tower: Tower; target: Enemy; chains?: Enemy[][] } = { t: 'fire', tower: t, target: e }; g.events.push(fire);
   const sp = t.spec, time = g.time;
   if (t.type === 'arrow') {
     const opts = { pierce: sp === 'a' && has(g, 'arrow.long') ? 0.25 : 0, sky: has(g, 'arrow.sky'), mark: has(g, 'arrow.mark'), bleed: sp === 'b' && has(g, 'arrow.bleed'), dead: sp === 'a' && has(g, 'arrow.dead') };
@@ -280,16 +280,16 @@ export function updateTower(g: Game, t: Tower, dt: number) {
       hurt(g, e, st.dmg * t.charge, 'magic');
       if (has(g, 'tesla.spill')) { let nb: Enemy | null = null, nd = 2.2 * 2.2; for (const o of g.enemies) { if (!o.alive || o === e) continue; const d2 = centreDist2(o, e); if (d2 < nd) { nd = d2; nb = o; } } if (nb) hurt(g, nb, st.dmg * t.charge * 0.35, 'magic'); }
       if (ab.surge && t.charge >= 3.99 && t.cd.surge <= 0 && e.alive) { // Meltdown
-        t.cd.surge = 6; hurt(g, e, st.dmg * 12, 'magic');
+        t.cd.surge = 6; g.events.push({ t: 'surge', tower: t, e }); hurt(g, e, st.dmg * 12, 'magic');
         for (const o of g.enemies) if (o.alive && o !== e && centreDist2(o, e) < 2.25) hurt(g, o, st.dmg * 6, 'magic');
       }
       return;
     }
     const hit = new Set<Enemy>();
     const chain = (cur: Enemy | null, n: number, falloff: number) => { // jumps to the nearest unhit enemy, losing damage each time
-      let dmg = st.dmg;
+      let dmg = st.dmg; const path: Enemy[] = []; (fire.chains ??= []).push(path);
       for (let k = 0; k < n && cur; k++) {
-        hit.add(cur); if (ab.static) { cur.shockT = 2; cur.shockDmg = st.dmg * 0.3; }
+        hit.add(cur); path.push(cur); if (ab.static) { cur.shockT = 2; cur.shockDmg = st.dmg * 0.3; }
         hurt(g, cur, dmg * (cur.def.air && has(g, 'tesla.rod') ? 1.25 : 1), 'magic'); dmg *= falloff;
         const from = cur, jr = sp === 'a' && has(g, 'tesla.super') ? 4.5 : 3.2; let nb: Enemy | null = null, nd = jr * jr;
         for (const o of g.enemies) { if (!o.alive || hit.has(o)) continue; const d2 = centreDist2(o, from); if (d2 < nd) { nd = d2; nb = o; } }

@@ -31,7 +31,9 @@ export type GameEvent =
   | { t: 'shield'; e: Enemy }
   | { t: 'build' | 'upgrade' | 'specialise'; tower: Tower }
   | { t: 'sell'; tower: Tower; refund: number }
-  | { t: 'fire'; tower: Tower; target: Enemy }
+  | { t: 'fire'; tower: Tower; target: Enemy; chains?: Enemy[][] } // chains: a Tesla's jumps, for drawing
+  | { t: 'surge'; tower: Tower; e: Enemy }
+  | { t: 'flashover'; tower: Tower; from: Enemy; e: Enemy }
   | { t: 'blast'; at: { x: number; y: number; z: number }; r: number }
   | { t: 'soldierDown'; s: Soldier }
   | { t: 'holy'; s: Soldier; e: Enemy }

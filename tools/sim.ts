@@ -1,6 +1,7 @@
-// npm run sim [-- --runs 40 --maps 0,1,2] — plays Watch mode battles on the engine and compares them with the 3.x
-// baseline in test/baseline.json (recorded with window.__watchRun in the live game). Milestone 1 is done when every
-// map matches: the engine's numbers sit within what 3.x's own run-to-run variation allows.
+// npm run sim [-- --runs 40 --maps 0,1,2] — plays Watch mode battles on the engine and compares them with the
+// baseline in test/baseline.json: 3.2's own battles, recorded in the last version that ran its own rules (the
+// __watchRun hook, removed in milestone 2). A map matches when the engine's numbers sit within what that game's
+// run-to-run variation allows; after a balance change, the gaps show how far it moved.
 import { readFileSync } from 'node:fs';
 import { MAPS } from '../src/content/maps.ts';
 import { makeWatchGame } from '../src/engine/ai.ts';

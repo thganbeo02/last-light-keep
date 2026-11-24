@@ -2,6 +2,8 @@
 
 ## 2026-11-24
 
+- Milestone 2 (branch `m2/renderer-port`): battles run on the engine. `main.js` draws the engine's records (enemies, towers, soldiers, projectiles, ground patches), plays its events as effects, and sends the player's actions as inputs; about 850 lines of 3.x battle rules are deleted. The baseline is re-recorded from 3.2 with the Shaman fix. Tesla chains, Meltdown and Flashover now carry drawing info in their engine events.
+- Verified with `npm test` (117 tests), `npm run typecheck`, a TypeScript check of `main.js` for undefined names, `npm run sim` (all maps match except Ember Crater's castle health, 22 against 10), `git diff --check`, and in the browser: Watch battles on every map and a played battle through every action. Not yet drawn: the War Drum's Thunder and Charge pulses, and per-enemy Shaman heal sparkles.
 - Fixed in 3.2: Goblin Shamans heal again and Frost Wraiths sway and trail again. The 3.2 Ogre animation change deleted both blocks by accident; they are restored exactly as in 3.1. Verified with `npm test`, `npm run build` and `git diff --check`.
 - Gameplay and polish batch, first published under 3.1, then bumped to 3.2 "Heavy Footsteps": its patch notes moved from 3.1 into a new 3.2 entry, and package.json is now 3.2.0:
   - Gruk's Mire Stomp: every 12 s, once a tower is within 2.5 tiles, a 0.7 s wind-up, then towers within 2.5 tiles are stunned for 2 s. In the game and the engine.
