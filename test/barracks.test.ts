@@ -93,11 +93,13 @@ describe('enemies fight back', () => {
     expect(e.charged).toBe(true);
     expect(t.soldiers.some(s => s.maxHp - s.hp >= 12)).toBe(true);
   });
-  it('a Shaman shoots soldiers from 3 tiles away, and stops to do it', () => {
+  it('a Shaman shoots soldiers from 3 tiles away without stopping (3.1 stopped, and could stall a battle)', () => {
     const g = game(), t = barracks(g), e: Enemy = walker(g, t, 'shaman', 3.5); e.hp = e.maxHp = 1e6;
     for (const s of t.soldiers) s.st = { ...s.st, rad: 0 }; // soldiers won't step out to fight it
-    run(g, 4);
-    expect(e.shooting).not.toBeNull();
+    let shotWalking = 0, shotStill = 0;
+    for (let i = 0; i < 120; i++) { const d = e.d, shooting = e.shooting; tick(g); if (shooting && e.shooting && !e.blocker && !e.stun && !e.freeze) e.d > d ? shotWalking++ : shotStill++; }
+    expect(shotWalking).toBeGreaterThan(10); expect(shotStill).toBe(0);
+    expect(t.soldiers.some(s => s.hp < s.maxHp)).toBe(true);
   });
 });
 

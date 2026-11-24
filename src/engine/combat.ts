@@ -1,4 +1,4 @@
-// An enemy fights the soldier blocking it, or (Shaman) shoots the nearest soldier in range; true = it stops walking.
+// An enemy fights the soldier blocking it, or (Shaman) shoots the nearest soldier in range while walking; true = it stops walking.
 // Ported from main.js enemyCombat: hit timing, the Boar Rider's charge, the Ogre's cleave, bosses' splash.
 import { ATK } from '../content/enemies.ts';
 import type { Enemy } from './enemies.ts';
@@ -30,5 +30,5 @@ export function enemyCombat(g: Game, e: Enemy, dt: number): boolean {
     else hurtSoldier(g, f, ad, A[3]);
   }
   const dx = foe.x - e.x, dz = foe.z - e.z; if (dx || dz) e.faceT = Math.atan2(dx, dz);
-  return true;
+  return !e.shooting; // a Shaman shoots on the move (3.1 stopped, and could stall a battle out of tower reach); only a blocker stops it
 }

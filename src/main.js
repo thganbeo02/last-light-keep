@@ -2926,7 +2926,7 @@ class Soldier {
     this.fg.scale.x = .6 * Math.max(0, this.hp / this.maxHp); this.bar.visible = this.hp < this.maxHp;
   }
 }
-// an enemy fights the soldier blocking it, or a ranged enemy shoots the nearest soldier in range; true = it stops walking
+// an enemy fights the soldier blocking it, or a ranged enemy shoots the nearest soldier in range while walking; true = it stops walking
 function enemyCombat(e, dt) {
   const A = ATK[e.type]; if (!A || e.def.air || !soldiers.length) { e.blocker = null; return false; }
   let foe = e.blocker && e.blocker.alive && (e.blocker.target === e || e.blocker.extra === e) ? e.blocker : null;
@@ -2945,7 +2945,7 @@ function enemyCombat(e, dt) {
     else foe.hurt(ad, A[3]);
   }
   const dx = foe.g.position.x - e.g.position.x, dz = foe.g.position.z - e.g.position.z; if (dx || dz) e.faceT = Math.atan2(dx, dz);
-  return true;
+  return !e.shooting; // a Shaman shoots on the move; only a blocker stops it
 }
 // barracks stats by level ('a' Paladins, 'b' Rangers) and rank
 const BARR = {
