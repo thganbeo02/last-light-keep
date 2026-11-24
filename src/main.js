@@ -1946,6 +1946,16 @@ class Enemy {
     if (this.wings) { const f = Math.sin(this.anim) * .55; this.wings[0].rotation.z = f; this.wings[1].rotation.z = -f; this.b.position.y = Math.cos(this.anim) * .06; }
     else this.b.position.y = Math.abs(Math.cos(this.anim)) * (this.type === 'runner' ? .08 : .05);
     if (this.type === 'boss') this.b.rotation.z = Math.sin(this.anim) * .05;
+    if (this.type === 'wraith') { this.b.rotation.z = Math.sin(this.anim) * .12; if (Math.random() < dt * 8) glow.spawn(this.center.x + rand(-.2, .2), this.center.y - .6, this.center.z + rand(-.2, .2), 0, -.3, 0, .7, .08, 0xa8e0ff, 0, F_SPIN, 1, 0x102040); }
+    if (this.type === 'shaman') {
+      this.healT -= dt;
+      if (this.healT <= 0) {
+        this.healT = 2;
+        let n = 0;
+        for (const o of enemies) if (o.alive && o !== this && o.hp < o.maxHp && !(o.burn > 0 && skH('flame.ever')) && o.center.distanceToSquared(this.center) < 6.8) { o.hp = Math.min(o.maxHp, o.hp + o.maxHp * .08); n++; for (let k = 0; k < 5; k++) glow.spawn(o.center.x + rand(-.3, .3), o.center.y + rand(-.2, .4), o.center.z + rand(-.3, .3), 0, rand(.8, 1.6), 0, .7, .09, 0x6aff8a, 0, F_SPIN, 1, 0x0a4a1a); }
+        if (n) for (let k = 0; k < 16; k++) { const a = k / 16 * 6.28; glow.spawn(this.center.x + Math.cos(a) * 1.2, this.g.position.y + .2, this.center.z + Math.sin(a) * 1.2, Math.cos(a) * 1.5, .5, Math.sin(a) * 1.5, .5, .1, 0x6aff8a, 0, F_SPIN, 1, 0x0a4a1a); }
+      }
+    }
     if (this.type === 'brute' || this.type === 'gruk') heavyAnim(this, held, dt);
     if ((this.type === 'brute' || this.type === 'boss' || this.type === 'golem' || this.type === 'gruk') && Math.floor(this.anim / Math.PI) !== this.lastStep) {
       this.lastStep = Math.floor(this.anim / Math.PI);

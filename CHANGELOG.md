@@ -2,6 +2,7 @@
 
 ## 2026-11-24
 
+- Fixed in 3.2: Goblin Shamans heal again and Frost Wraiths sway and trail again. The 3.2 Ogre animation change deleted both blocks by accident; they are restored exactly as in 3.1. Verified with `npm test`, `npm run build` and `git diff --check`.
 - Gameplay and polish batch, first published under 3.1, then bumped to 3.2 "Heavy Footsteps": its patch notes moved from 3.1 into a new 3.2 entry, and package.json is now 3.2.0:
   - Gruk's Mire Stomp: every 12 s, once a tower is within 2.5 tiles, a 0.7 s wind-up, then towers within 2.5 tiles are stunned for 2 s. In the game and the engine.
   - Calling a wave early takes the seconds skipped off every spell cooldown, in the game and the engine.
