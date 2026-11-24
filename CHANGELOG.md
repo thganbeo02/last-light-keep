@@ -2,7 +2,7 @@
 
 ## 2026-11-24
 
-- Gameplay and polish batch, published as 3.1 with its patch notes extended:
+- Gameplay and polish batch, first published under 3.1, then bumped to 3.2 "Heavy Footsteps": its patch notes moved from 3.1 into a new 3.2 entry, and package.json is now 3.2.0:
   - Gruk's Mire Stomp: every 12 s, once a tower is within 2.5 tiles, a 0.7 s wind-up, then towers within 2.5 tiles are stunned for 2 s. In the game and the engine.
   - Calling a wave early takes the seconds skipped off every spell cooldown, in the game and the engine.
   - The Ogre Brute and Gruk share a smoothed heavy animation: sway, breathing while fighting, a club wind-up and slam, and Gruk's stomp wind-up. The first Ogre version threw an error on every hit and dropped a frame; that's fixed.
