@@ -154,7 +154,7 @@ export const ED = {
   gruk: {
     name: "Gruk",
     title: "Gruk the Mire-King",
-    desc: "Chieftain of the bog trolls. Slows wear off him twice as fast, and at half health two Boar Riders charge out ahead of him.",
+    desc: "Chieftain of the bog trolls. Slows wear off him twice as fast, every 12 s his Mire Stomp stuns towers within 2.5 tiles for 2 s, and at half health two Boar Riders charge out ahead of him.",
     weak: "Cannon and Flame Tower, with slows kept on him",
     hp: 1820,
     speed: 0.7,

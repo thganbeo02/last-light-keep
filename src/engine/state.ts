@@ -21,6 +21,8 @@ export type GameEvent =
   | { t: 'lastStand' }
   | { t: 'heal'; e: Enemy; n: number }
   | { t: 'roar'; e: Enemy }
+  | { t: 'stomping'; e: Enemy }
+  | { t: 'stomp'; e: Enemy; towers: Tower[] }
   | { t: 'shrug'; e: Enemy }
   | { t: 'planting'; e: Enemy; tower: Tower }
   | { t: 'planted'; e: Enemy; tower: Tower }

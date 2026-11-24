@@ -194,6 +194,7 @@ body:not(.ready) #title .t-btns{display:none} body.ready .t-load{display:none}
 #ttip .tst>div.bst{background:#d6e8b4;box-shadow:inset 0 0 0 2px #6aa83a}
 #ttip .tst>div.bst b{color:#2f7a2a}
 #ttip .tst em{font:800 12.5px/1.1 Nunito,ui-rounded,system-ui,sans-serif;font-style:normal;color:#2f7a2a}
+#ttip .tst em.dn{color:#b8322a}
 #ttip .tst small{font-size:10.5px;color:#6a4a2a}
 #ttip .ti{color:#5a3a22;height:20px}
 #ttip .tft{display:flex;align-items:center;gap:6px;font-size:12px;color:#5a3a22}

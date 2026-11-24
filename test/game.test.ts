@@ -61,6 +61,13 @@ describe('waves', () => {
     sendWave(g, true);
     expect(g.gold - gold).toBe(Math.round(left * 2)); expect(g.wave).toBe(2);
   });
+  it('calling a wave early takes the seconds skipped off every spell cooldown', () => {
+    const g = game(); run(g, 0.1, [{ do: 'callWave' }]);
+    for (let i = 0; i < 30 * 60 && g.spawnQ.length; i++) tick(g);
+    g.scd = { militia: 30, catapult: 5 }; const left = g.countdown;
+    sendWave(g, true);
+    expect(g.scd.militia).toBeCloseTo(30 - left, 5); expect(g.scd.catapult).toBe(0);
+  });
   it('clearing a wave pays 20 + 5 per wave; Muster, Interest and Repair add to it', () => {
     const g = game({ skills: ['kingdom.muster', 'kingdom.interest', 'kingdom.repair'] });
     for (let p = 0; p < 6; p++) tick(g, [{ do: 'build', type: 'arrow', plot: p }]);

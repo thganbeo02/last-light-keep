@@ -26,6 +26,7 @@ export interface Enemy {
   // specials
   healT: number; roared: boolean; shrug: boolean; lastSlow: number;
   planted: boolean; plantT: number; plantOn: Tower | null;
+  stompT: number; stompW: number; // Gruk's Mire Stomp: time to the next one, and the wind-up left
   // melee with soldiers (src/engine/combat.ts, src/engine/soldiers.ts)
   fighting: boolean; faceT: number | null; blocker: Soldier | null; shooting: Soldier | null;
   atkT: number | undefined; charged: boolean; fan: { x: number; z: number; t: number } | null;
@@ -54,7 +55,7 @@ export function spawnEnemy(g: Game, type: EnemyType, d = 0, path = 0): Enemy {
     hp, maxHp: hp, alive: true,
     slow: 0, slowF: 1, freeze: 0, stun: 0, burn: 0, sunder: 0, brittle: 0, iceBrittle: false, shockT: 0, shockDmg: 0, hex: 0, markT: 0, bleedT: 0,
     healT: range(g.rng, 0.5, 2), roared: false, shrug: false, lastSlow: 0,
-    planted: false, plantT: 0, plantOn: null,
+    planted: false, plantT: 0, plantOn: null, stompT: 8, stompW: 0,
     fighting: false, faceT: null, blocker: null, shooting: null, atkT: undefined, charged: false, fan: null,
   };
   place(g, e, 0, true);
@@ -123,8 +124,15 @@ export function updateEnemy(g: Game, e: Enemy, dt: number) {
       if (e.plantT <= 0) { e.planted = true; const t = e.plantOn!; if (g.towers.includes(t)) { t.stunT = 5; g.events.push({ t: 'planted', e, tower: t }); } }
     } else for (const t of g.towers) if ((t.x - e.x) ** 2 + (t.z - e.z) ** 2 < 5) { e.plantT = 0.9; e.plantOn = t; g.events.push({ t: 'planting', e, tower: t }); break; }
   }
+  if (e.type === 'gruk' && !(e.freeze > 0) && !(e.stun > 0)) { // Mire Stomp: every 12 s, a 0.7 s wind-up, then towers within 2.5 tiles are stunned 2 s
+    const near = () => g.towers.filter(t => (t.x - e.x) ** 2 + (t.z - e.z) ** 2 < 6.25);
+    if (e.stompW > 0) {
+      e.stompW -= dt;
+      if (e.stompW <= 0) { e.stompW = 0; e.stompT = 12; const hit = near(); for (const t of hit) t.stunT = Math.max(t.stunT, 2); g.events.push({ t: 'stomp', e, towers: hit }); }
+    } else if ((e.stompT -= dt) <= 0 && near().length) { e.stompW = 0.7; g.events.push({ t: 'stomping', e }); }
+  }
   const fighting = e.fighting = enemyCombat(g, e, dt);
-  const held = e.freeze > 0 || e.stun > 0 || e.plantT > 0 || fighting;
+  const held = e.freeze > 0 || e.stun > 0 || e.plantT > 0 || e.stompW > 0 || fighting;
   const bogs = (g.def as { bog?: number[][] }).bog;
   const bog = bogs && !e.def.air && bogs.some(([a, b]) => e.d > a * P.len && e.d < b * P.len) ? 0.7 : 1;
   e.d += (held ? 0 : e.def.speed * (e.slow > 0 ? e.slowF : 1) * bog) * dt;

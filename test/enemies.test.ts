@@ -117,6 +117,21 @@ describe('specials', () => {
     expect(riders[1].d - riders[0].d).toBeCloseTo(1.6);
     expect(riders[0].d).toBeGreaterThan(gr.d);
   });
+  it('Gruk stomps every 12 s once a tower is in reach: stands still 0.7 s, then stuns towers within 2.5 tiles for 2 s', () => {
+    const g = game({ map: 3 }), gr = one(g, 'gruk', 20);
+    const near = buildTower(g, 'arrow', 0, { free: true, instant: true })!, far = buildTower(g, 'arrow', 1, { free: true, instant: true })!;
+    updateEnemy(g, gr, DT); near.x = gr.x + 2; near.z = gr.z; far.x = gr.x + 3; far.z = gr.z;
+    gr.stompT = DT / 2; updateEnemy(g, gr, DT); expect(gr.stompW).toBe(0.7);
+    const d = gr.d; for (let i = 0; i < 20; i++) updateEnemy(g, gr, DT); expect(gr.d).toBe(d); // held during the wind-up
+    for (let i = 0; i < 2; i++) updateEnemy(g, gr, DT);
+    expect(gr.stompW).toBe(0); expect(gr.stompT).toBe(12);
+    expect(near.stunT).toBe(2); expect(far.stunT).toBe(0);
+  });
+  it('Gruk holds the stomp until a tower is in reach', () => {
+    const g = game({ map: 3 }), gr = one(g, 'gruk', 20); gr.stompT = 0;
+    for (let i = 0; i < 30; i++) updateEnemy(g, gr, DT);
+    expect(gr.stompW).toBe(0); expect(gr.d).toBeGreaterThan(20);
+  });
   it('slows wear off Gruk twice as fast', () => {
     const g = game({ map: 3 }), gr = one(g, 'gruk', 20); gr.slow = 2; gr.lastSlow = 0; gr.slowF = 0.5;
     updateEnemy(g, gr, DT);

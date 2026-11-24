@@ -794,7 +794,7 @@ const ED = {
   wraith: { name: 'Wraith', title: 'Frost Wraith', desc: 'A flying ghost. Arrows pass almost straight through it, and Cannons and Flame Towers cannot reach it.', weak: 'Tesla Coil, Frost Spire', hp: 78, speed: 2.0, reward: 12, dmg: 5, air: true, armor: .85, mr: 0, bw: .7, step: 6 },
   sapper: { name: 'Sapper', title: 'Goblin Sapper', desc: 'Hauls a bomb. It stops beside the first tower it reaches and plants a charge that knocks that tower out for 5 seconds.', weak: 'Archer Tower and Cannon: kill it before it reaches your towers', hp: 52, speed: 2.2, reward: 8, dmg: 4, air: false, armor: 0, mr: 0, bw: .65, step: 13 },
   rider: { name: 'Boar Rider', title: 'Boar Rider', desc: 'A goblin on a war boar. Fast, and it charges straight through the first slow or freeze that hits it.', weak: 'Cannon splash, Archer Tower, a second slow', hp: 72, speed: 2.6, reward: 9, dmg: 5, air: false, armor: .1, mr: 0, bw: .8, step: 14 },
-  gruk: { name: 'Gruk', title: 'Gruk the Mire-King', desc: 'Chieftain of the bog trolls. Slows wear off him twice as fast, and at half health two Boar Riders charge out ahead of him.', weak: 'Cannon and Flame Tower, with slows kept on him', hp: 1820, speed: .7, reward: 120, dmg: 30, air: false, armor: .2, mr: .1, bw: 2.0, step: 3 },
+  gruk: { name: 'Gruk', title: 'Gruk the Mire-King', desc: 'Chieftain of the bog trolls. Slows wear off him twice as fast, every 12 s his Mire Stomp stuns towers within 2.5 tiles for 2 s, and at half health two Boar Riders charge out ahead of him.', weak: 'Cannon and Flame Tower, with slows kept on him', hp: 1820, speed: .7, reward: 120, dmg: 30, air: false, armor: .2, mr: .1, bw: 2.0, step: 3 },
   boss: { name: 'Warlord', title: 'Stone Warlord', desc: 'Leader of the horde. Enormous health and armour against both physical and magic damage.', weak: 'Frost Spire slow, then Flame Tower', hp: 2210, speed: .62, reward: 140, dmg: 34, air: false, armor: .4, mr: .4, bw: 2.2, step: 2.6 },
 };
 const ES = 1.25; // enemy model scale
@@ -1845,6 +1845,22 @@ const barMats = [0x5fd36a, 0xf2c94c, 0xeb5757].map(c => new THREE.MeshBasicMater
 const bossBarMat = new THREE.MeshBasicMaterial({ color: 0xff7a1a, transparent: true, depthWrite: false });
 const planeGeo = new THREE.PlaneGeometry(1, 1), planeGeoL = new THREE.PlaneGeometry(1, 1).translate(.5, 0, 0);
 const _v = new V3(), _w = new V3(), _dir = new V3();
+// Ogre and Gruk: a lumbering sway, breathing while they fight, and an overhead club wind-up and slam (the club is in arms[1]).
+// Poses ease toward their targets so nothing snaps; Gruk also rears back for the Mire Stomp and slams both fists down.
+function heavyAnim(e, held, dt) {
+  const gk = e.type === 'gruk', t = game.time, k = Math.min(1, dt * 10), A = e.arms, B = e.b;
+  let rz = held ? Math.sin(t * 2) * .03 : Math.sin(e.anim) * (gk ? .11 : .09), ry = held ? 0 : Math.sin(e.anim) * .07, rx = 0, y = B.position.y;
+  let a1 = held ? -.15 + Math.sin(t * 2.2) * .08 : A[1].rotation.x, a0 = held ? Math.sin(t * 2.2 + 1) * .1 : A[0].rotation.x, l0 = null;
+  if (gk && !held) y = Math.abs(Math.sin(e.anim)) * .1; // big stomping bob
+  if (e.fighting && !e.shooting && e.atkT != null) a1 = Math.min(a1, -2.6 * clamp(1 - e.atkT / .5, 0, 1)); // raise the club before the hit
+  if (gk && e.stompW > 0) { const w = 1 - e.stompW / .7; a0 = a1 = -2.5 * w; rx = -.3 * w; l0 = -.9 * w; rz = 0; } // rear back, both arms up, knee up
+  e.az = lerp(e.az ?? 0, rz, k); e.ay = lerp(e.ay ?? 0, ry, k); e.ax = lerp(e.ax ?? 0, rx, k);
+  e.a0 = lerp(e.a0 ?? 0, a0, Math.min(1, dt * 14)); e.a1 = lerp(e.a1 ?? 0, a1, Math.min(1, dt * 14));
+  if (e.swing > 0) { const p = 1 - e.swing; e.a1 = p < .45 ? -2.6 + 3.1 * (p / .45) ** 2 : .5 * (1 - (p - .45) / .55); e.ax = Math.sin(Math.min(1, p / .45) * Math.PI) * .25; }
+  if (gk && e.slamT > 0) { e.slamT = Math.max(0, e.slamT - dt * 3); const p = 1 - e.slamT; e.a0 = e.a1 = p < .3 ? -2.5 + 3 * (p / .3) ** 2 : .5 * (1 - (p - .3) / .7); e.ax = Math.sin(Math.min(1, p / .3) * Math.PI) * .35; }
+  A[0].rotation.x = e.a0; A[1].rotation.x = e.a1; B.rotation.z = e.az; B.rotation.y = e.ay; B.rotation.x += e.ax; B.position.y = y;
+  if (l0 != null) { e.legs[0].rotation.x = l0; e.legs[1].rotation.x = 0; }
+}
 class Enemy {
   constructor(type, d, mul, path) {
     const def = this.def = ED[type]; this.type = type; this.path = path || PATHS[0]; this.healT = rand(.5, 2); this.sunder = 0; this.brittle = 0; this.freeze = 0; this.stun = 0; this.shockT = 0; this.shockDmg = 0; this.iceBrittle = false;
@@ -1899,8 +1915,21 @@ class Enemy {
         if (this.plantT <= 0) { this.planted = true; const t = this.plantOn; if (towers.includes(t)) { t.stunT = 5; fxExplosion(new V3(t.x, 1.3, t.z), .6); addShake(new V3(t.x, 1, t.z), .12); msg(`A sapper knocked out your ${TT[t.type].name}!`); } }
       } else for (const t of towers) if ((t.x - this.g.position.x) ** 2 + (t.z - this.g.position.z) ** 2 < 5) { this.plantT = .9; this.plantOn = t; break; }
     }
+    if (this.type === 'gruk' && !(this.freeze > 0) && !(this.stun > 0)) { // Mire Stomp: every 12 s, a 0.7 s wind-up, then towers within 2.5 tiles are stunned 2 s
+      const near = () => towers.filter(t => (t.x - this.g.position.x) ** 2 + (t.z - this.g.position.z) ** 2 < 6.25);
+      if (this.stompW > 0) {
+        this.stompW -= dt;
+        if (this.stompW <= 0) {
+          this.stompW = 0; this.stompT = 12; this.slamT = 1; const hit = near();
+          for (const t of hit) { t.stunT = Math.max(t.stunT || 0, 2); fxSparks(new V3(t.x, 1.6, t.z), 0xc8e870, 6, 3); }
+          fxDust(this.g.position, 18, .55); addShake(this.g.position, .2);
+          for (let k = 0; k < 24; k++) { const a = k / 24 * 6.28; smoke.spawn(this.g.position.x + Math.cos(a) * .6, this.g.position.y + .15, this.g.position.z + Math.sin(a) * .6, Math.cos(a) * 5, .4, Math.sin(a) * 5, .7, .3, 0x6a7a3a, 0, F_GROW | F_SPIN, 2.5, 0x9aa860); }
+          if (hit.length) msg(`Gruk's stomp stunned ${hit.length} tower${hit.length > 1 ? 's' : ''}!`);
+        }
+      } else if ((this.stompT = (this.stompT ?? 8) - dt) <= 0 && near().length) this.stompW = .7;
+    }
     const fighting = this.fighting = enemyCombat(this, dt);
-    const held = this.freeze > 0 || this.stun > 0 || this.plantT > 0 || fighting;
+    const held = this.freeze > 0 || this.stun > 0 || this.plantT > 0 || this.stompW > 0 || fighting;
     const bog = MAP.bog && !this.def.air && MAP.bog.some(([a, b]) => this.d > a * this.path.len && this.d < b * this.path.len) ? .7 : 1;
     const sp = held ? 0 : this.def.speed * (this.slow > 0 ? this.slowF : 1) * bog;
     this.d += sp * dt;
@@ -1913,20 +1942,11 @@ class Enemy {
     if (this.legs.length > 3) { this.legs[2].rotation.x = -s * amp; this.legs[3].rotation.x = s * amp; }
     if (this.arms.length) { this.arms[0].rotation.x = -s * amp * .7; this.arms[1].rotation.x = s * amp * .7 - (this.type === 'boss' ? .3 : 0); }
     if (this.flinch > 0) this.flinch = Math.max(0, this.flinch - dt * 6); this.b.rotation.x = -(this.flinch || 0) * .3;
-    if (this.swing > 0) { this.swing = Math.max(0, this.swing - dt * 3); if (this.arms.length) this.arms[0].rotation.x = -this.swing * 1.4; }
+    if (this.swing > 0) { this.swing = Math.max(0, this.swing - dt * 3); if (this.arms.length && this.type !== 'brute' && this.type !== 'gruk') this.arms[0].rotation.x = -this.swing * 1.4; }
     if (this.wings) { const f = Math.sin(this.anim) * .55; this.wings[0].rotation.z = f; this.wings[1].rotation.z = -f; this.b.position.y = Math.cos(this.anim) * .06; }
     else this.b.position.y = Math.abs(Math.cos(this.anim)) * (this.type === 'runner' ? .08 : .05);
     if (this.type === 'boss') this.b.rotation.z = Math.sin(this.anim) * .05;
-    if (this.type === 'wraith') { this.b.rotation.z = Math.sin(this.anim) * .12; if (Math.random() < dt * 8) glow.spawn(this.center.x + rand(-.2, .2), this.center.y - .6, this.center.z + rand(-.2, .2), 0, -.3, 0, .7, .08, 0xa8e0ff, 0, F_SPIN, 1, 0x102040); }
-    if (this.type === 'shaman') {
-      this.healT -= dt;
-      if (this.healT <= 0) {
-        this.healT = 2;
-        let n = 0;
-        for (const o of enemies) if (o.alive && o !== this && o.hp < o.maxHp && !(o.burn > 0 && skH('flame.ever')) && o.center.distanceToSquared(this.center) < 6.8) { o.hp = Math.min(o.maxHp, o.hp + o.maxHp * .08); n++; for (let k = 0; k < 5; k++) glow.spawn(o.center.x + rand(-.3, .3), o.center.y + rand(-.2, .4), o.center.z + rand(-.3, .3), 0, rand(.8, 1.6), 0, .7, .09, 0x6aff8a, 0, F_SPIN, 1, 0x0a4a1a); }
-        if (n) for (let k = 0; k < 16; k++) { const a = k / 16 * 6.28; glow.spawn(this.center.x + Math.cos(a) * 1.2, this.g.position.y + .2, this.center.z + Math.sin(a) * 1.2, Math.cos(a) * 1.5, .5, Math.sin(a) * 1.5, .5, .1, 0x6aff8a, 0, F_SPIN, 1, 0x0a4a1a); }
-      }
-    }
+    if (this.type === 'brute' || this.type === 'gruk') heavyAnim(this, held, dt);
     if ((this.type === 'brute' || this.type === 'boss' || this.type === 'golem' || this.type === 'gruk') && Math.floor(this.anim / Math.PI) !== this.lastStep) {
       this.lastStep = Math.floor(this.anim / Math.PI);
       const big = this.type === 'boss';
@@ -2938,6 +2958,7 @@ function enemyCombat(e, dt) {
   e.atkT = (e.atkT ?? A[1] * .5) - dt;
   if (e.atkT <= 0) {
     e.atkT = A[1]; e.swing = 1;
+    if (e.type === 'brute') fxDust(foe.g.position, 7, .3);
     if (A[2] > 1.5) bolt(e.center.clone(), foe.center.clone(), 0x9a6aff);
     const ad = A[0] * eDmgMul();
     if (e.type === 'gruk' || e.type === 'boss') { for (const s of soldiers) if (s.alive && (s.g.position.x - foe.g.position.x) ** 2 + (s.g.position.z - foe.g.position.z) ** 2 < 1) s.hurt(ad, A[3]); fxDust(foe.g.position, 6, .3); }
@@ -4342,14 +4363,23 @@ function spellsTick(dt) {
   for (const k of game.spells || []) {
     const b = $('sp-' + k); if (!b) continue;
     const left = game.scd[k] || 0, f = left / SPELLS[k].cd;
-    const wait = game.wave < 1; b.style.setProperty('--p', wait ? '100%' : (f * 100).toFixed(1) + '%'); b.classList.toggle('cool', left > 0 || wait); b.querySelector('.sp-t').textContent = wait ? '' : left > 0 ? Math.ceil(left) : ''; b.title = wait ? `${SPELLS[k].name}: ready once the first wave is called` : `${SPELLS[k].name}: ${SPELLS[k].desc}`;
+    const wait = game.wave < 1; b.style.setProperty('--p', wait ? '100%' : (f * 100).toFixed(1) + '%'); b.classList.toggle('cool', left > 0 || wait); b.querySelector('.sp-t').textContent = wait ? '' : left > 0 ? Math.ceil(left) : '';
   }
   $('spells').hidden = !(game.spells && game.spells.length) || $('ctrl').hidden || game.state !== 'play';
 }
 function renderSpells() {
   const ks = game.spells || [];
-  $('spells').innerHTML = ks.map((k, i) => `<button type="button" id="sp-${k}" class="sp${ui.spell === k ? ' on' : ''}" data-k="${k}" aria-label="${SPELLS[k].name}: ${SPELLS[k].desc} Key ${i + 1}" title="${SPELLS[k].name} (${i + 1}): ${SPELLS[k].desc}"><img src="${SPELL_ART[k]}" alt="" draggable="false"><span class="sp-n">${SPELLS[k].name}</span><span class="sp-t"></span><kbd>${i + 1}</kbd></button>`).join('');
+  $('spells').innerHTML = ks.map((k, i) => `<button type="button" id="sp-${k}" class="sp${ui.spell === k ? ' on' : ''}" data-k="${k}" aria-label="${SPELLS[k].name}: ${SPELLS[k].desc} Key ${i + 1}"><img src="${SPELL_ART[k]}" alt="" draggable="false"><span class="sp-n">${SPELLS[k].name}</span><span class="sp-t"></span><kbd>${i + 1}</kbd></button>`).join('');
 }
+// hovering a spell shows what it does (mouse only; touch taps cast)
+function spellTip(b) {
+  const k = b.dataset.k, S = SPELLS[k], left = game.scd[k] || 0;
+  const sub = game.wave < 1 ? 'Ready once the first wave is called' : left > 0 ? `Ready in ${Math.ceil(left)} s` : 'Ready';
+  tipEl.innerHTML = tipHTML({ title: S.name, col: hx(S.col), sub, body: S.desc, foot: `Recharges in ${S.cd} s · key ${(game.spells || []).indexOf(k) + 1}` }); tipEl.hidden = false;
+  const r = b.getBoundingClientRect(); placeTip(r.left + r.width / 2, r.top, 10);
+}
+$('spells').addEventListener('pointerover', e => { const b = e.target.closest('.sp'); if (b && e.pointerType === 'mouse' && !ui.spot && !ui.sel) spellTip(b); });
+$('spells').addEventListener('pointerout', e => { if (!e.relatedTarget?.closest?.('.sp') && !ui.spot && !ui.sel) tipEl.hidden = true; });
 function pickSpell(k) {
   if (game.mode !== 'play' || game.state !== 'play' || !(game.spells || []).includes(k)) return;
   if (game.wave < 1) { msg('Spells are ready once you call the first wave'); return; }
@@ -4474,7 +4504,8 @@ function statTiles(type, a, b, bo) {
   const hs = !b && bo && type !== 'drum' ? bo.haste || 0 : 0, rb = !b && bo && type !== 'barracks' && type !== 'drum' ? bo.rngB || 0 : 0;
   if (hs) a = Object.assign({}, a, { rate: a.rate / (1 + hs) });
   const x = b || a, f = type === 'drum' ? [['Fire rate', 'spd', v => '+' + dpct(v.haste)], ['Radius', 'rng', v => v.range.toFixed(1)], ...(x.rngB ? [['Tower range', 'rng', v => '+' + dpct(v.rngB || 0)]] : x.hex ? [['Damage taken', 'dmg', v => '+' + dpct(v.hex || 0)]] : [])] : type === 'barracks' ? [['Health', 'max', v => Math.round(v.hp)], ['Damage', 'dmg', v => r1(v.dmg)], ['Radius', 'rng', v => v.range.toFixed(1)]] : [[type === 'flame' ? 'Dmg / tick' : 'Damage', 'dmg', v => r1(v.dmg)], ['Range', 'rng', v => v.range.toFixed(1)], ['Fires every', 'spd', v => v.rate.toFixed(2) + 's']];
-  return `<div class="tst">${f.map(([lab, ic, fn]) => `<div${(ic === 'spd' && hs) || (ic === 'rng' && rb) ? ' class="bst" title="Boosted by a War Drum"' : ''}><span class="ti">${svg(ic, 20)}</span><b>${fn(a)}</b>${b ? `<em>&rarr; ${fn(b)}</em>` : ''}<small>${lab}</small></div>`).join('')}</div>`;
+  const worse = (ic, x, y) => { const p = v => parseFloat(String(v).replace('+', '')), d = p(y) - p(x); return ic === 'spd' && type !== 'drum' ? d > 0 : d < 0; }; // fire interval: lower is better
+  return `<div class="tst">${f.map(([lab, ic, fn]) => `<div${(ic === 'spd' && hs) || (ic === 'rng' && rb) ? ' class="bst" title="Boosted by a War Drum"' : ''}><span class="ti">${svg(ic, 20)}</span><b>${fn(a)}</b>${b ? `<em${worse(ic, fn(a), fn(b)) ? ' class="dn"' : ''}>&rarr; ${fn(b)}</em>` : ''}<small>${lab}</small></div>`).join('')}</div>`;
 }
 function tipHTML({ title, col = '#3b2412', price, poor, sub, body, stats, foot }) {
   return `<div class="th"><b style="color:${col}">${title}</b>${price != null ? `<span class="tag${poor ? ' poor' : ''}">${price}</span>` : ''}</div>${sub ? `<div class="tsub">${sub}</div>` : ''}${stats || ''}${body ? `<p>${body}</p>` : ''}${foot ? `<div class="tft">${foot}</div>` : ''}`;
@@ -4649,8 +4680,11 @@ function sendWave(early) {
   if (game.mode !== 'play' || game.state !== 'play' || game.spawnQ.length || game.wave >= MAP.waves) return;
   const bonus = early && game.wave > 0 ? Math.max(0, Math.round(game.countdown * 2 * (skH('kingdom.early') ? 1.25 : 1))) : 0;
   game.gold += bonus; game.earned += bonus;
+  const skip = early && game.wave > 0 ? Math.max(0, game.countdown) : 0; // spells recharge by the time the early call skipped
+  const cooling = skip >= 1 && Object.values(game.scd).some(v => v > 0);
+  for (const k in game.scd) game.scd[k] = Math.max(0, game.scd[k] - skip);
   startWave();
-  if (bonus) msg(`Wave ${game.wave} sent early  +${bonus} gold`);
+  if (bonus) msg(`Wave ${game.wave} sent early  +${bonus} gold${cooling ? `, spells ${Math.round(skip)} s closer` : ''}`);
 }
 function togglePause() {
   if (game.mode !== 'play' || game.state !== 'play') return;

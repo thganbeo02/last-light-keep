@@ -31,11 +31,14 @@ export function startWave(g: Game) {
   g.events.push({ t: 'wave', n: g.wave, bosses: w.bosses });
 }
 
-/** Calls the next wave now. Early (before its countdown ends) pays 2 gold per second left, +25% with Early Bird. */
+/** Calls the next wave now. Early (before its countdown ends) pays 2 gold per second left, +25% with Early Bird,
+ *  and takes the seconds left off every spell's cooldown. */
 export function sendWave(g: Game, early: boolean) {
   if (g.mode !== 'play' || g.state !== 'play' || g.spawnQ.length || g.wave >= g.def.waves) return;
   const bonus = early && g.wave > 0 ? Math.max(0, Math.round(g.countdown * 2 * (has(g, 'kingdom.early') ? 1.25 : 1))) : 0;
   g.gold += bonus; g.earned += bonus;
+  const skip = early && g.wave > 0 ? Math.max(0, g.countdown) : 0;
+  for (const k in g.scd) g.scd[k] = Math.max(0, g.scd[k] - skip);
   startWave(g);
 }
 
