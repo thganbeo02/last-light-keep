@@ -23,20 +23,21 @@ npm run extract  # copies balance constants from src/main.js into src/content/
 | Path | What it holds |
 | --- | --- |
 | `index.html` | All the UI markup: HUD, title, world map, briefing, almanac, patch notes and the skill tree. |
-| `src/main.js` | The game, split into sections marked `// ====` and `// ----` (renderer, maps, enemies, towers, barracks, war drum, waves, AI, camera, input, spells, campaign, cloud save, War Council, patch notes, almanac, HUD, loop). |
+| `src/main.js` | The renderer and UI, split into sections marked `// ====` and `// ----` (scene, maps, enemy, tower and soldier models and their views, effects, camera, the engine bridge, input, spells, campaign, cloud save, War Council, patch notes, almanac, HUD, loop). It holds the balance constants the menus show, but no battle rules. |
 | `src/utils.js` | Math, noise and colour helpers. |
 | `src/patches.json` | In-game patch notes, newest first. The first entry is the version the title screen shows. |
 | `src/style.css` | All the styles. |
 | `src/art/` | Painted art as WebP files. `almanac/` holds tower forms (`arrow-1` … `drum-b`), enemies (`e_*`) and soldiers (`u_*`), which load automatically through `import.meta.glob`. See `docs/ART.md`. |
-| `src/engine/` | The rebuild's battle engine in TypeScript: pure and deterministic, with no DOM, Three.js, clock or `Math.random` (use `rng.ts`). Not bundled into the game yet. |
-| `src/content/` | Balance data generated from `main.js` by `npm run extract`. Don't edit it by hand while `main.js` is the live game. |
+| `src/engine/` | The battle engine in TypeScript: every battle rule, pure and deterministic, with no DOM, Three.js, clock or `Math.random` (use `rng.ts`). The game runs it through the engine bridge in `main.js`. |
+| `src/content/` | Balance data generated from `main.js`'s constants by `npm run extract`. Don't edit it by hand: change the constant in `main.js` and re-extract. |
 | `test/` | Vitest tests. `content.test.ts` fails when `src/content` and `main.js` drift apart. |
-| `tools/` | Node scripts: content extraction now, the simulator later. |
-| `docs/` | The art pipeline, and `M1.md`, the milestone 1 plan and checklist. |
+| `tools/` | Node scripts: content extraction, and the simulator (`npm run sim`), which plays Watch battles on the engine and compares them with `test/baseline.json`. |
+| `docs/` | The art pipeline, and the milestone plans and checklists (`M1.md` engine, `M2.md` renderer on the engine). |
 
 ## Rules
 
-- **The rebuild:** work through `docs/M1.md` in order and tick its steps in the same change. Port behaviour as it is first, and note any bug found in `docs/M1.md`. Run `npm test` and `npm run typecheck` before committing.
+- **Battle rules live in `src/engine/` only.** `main.js` draws the engine's records, plays its events and sends the player's actions as inputs (the engine bridge section). A gameplay change is an engine change with a test; a balance number is a constant in `main.js`, then `npm run extract`. Run `npm test` and `npm run typecheck` before committing, and `npm run sim` after a balance change.
+- **The rebuild:** work through the current milestone's doc in `docs/` in order and tick its steps in the same change; note any bug found there.
 
 - **Never change the save keys** `voxelSiege.stars.v1` and `voxelSiege.save.v2`, or the cloud document path `data/users/<id>/save`. They predate the rename, and live players' progress depends on them. If the save shape changes, update `mergeSave()` so that old saves still merge.
 - **Use `src/patches.json` for versioned releases.** Write one entry for the release batch and cover meaningful player-visible changes. Typos and small copy edits can ship under the current version without a patch note.
@@ -47,7 +48,7 @@ npm run extract  # copies balance constants from src/main.js into src/content/
   - Icons are keys in `PN_GLYPH`/`SKI`, or `tw:<tower>` / `en:<enemy>` for art.
 - Keep the build a single file. Load nothing at runtime from new hosts: artifacts only allow scripts from a few CDNs and fonts from Google Fonts.
 - The game keeps much of its state in shared top-level variables. Move a section into its own module only when it can stand alone, as `utils.js` does. Imported bindings are read-only, so a `let` that other sections reassign cannot be moved out as it stands.
-- Test hooks on `window`: `__g()` returns the game state, `__step(n)` runs n ticks at 30 per second, `__probe(s)` simulates s seconds, `__shot(name)` takes a camera shot, `__enemyDims()` returns each enemy type's centre height, `__muzzles()` each tower form's muzzle height, `__towerStats(ids)` every attacking tower form's stats and costs with the given War Council picks, `__barrStats(ids)` every Barracks form's soldier stats, `__drumStats(ids)` every War Drum form's stats, `__watchRun(i)` plays a whole Watch battle on map i and reports how it ended (the source of `test/baseline.json`), and `__mapInfo(i)` rebuilds map i and returns its plots, path lengths, samples and tiles (the source of `test/fixtures/maps-3x.json`). Use them to check a change in the browser without playing by hand.
+- Test hooks on `window`: `__g()` returns the game state, `__step(n)` runs n ticks at 30 per second, `__probe(s)` simulates s seconds, `__shot(name)` takes a camera shot, `__enemyDims()` returns each enemy type's centre height, `__muzzles()` each tower form's muzzle height, `__towerStats(ids)` every attacking tower form's stats and costs with the given War Council picks, `__barrStats(ids)` every Barracks form's soldier stats, `__drumStats(ids)` every War Drum form's stats, `__G()` the engine's battle, `__eIn(input)` queues a player action for its next step, `__setGold(n)` sets the battle's gold, and `__mapInfo(i)` rebuilds map i and returns its plots, path lengths, samples and tiles (the source of `test/fixtures/maps-3x.json`). Use them to check a change in the browser without playing by hand.
 - Testing mode: on the world map, tap the star counter 5 times. Every level, tower and spell opens (`save.dev`).
 
 ## Wrap up
