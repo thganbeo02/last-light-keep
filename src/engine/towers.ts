@@ -6,6 +6,7 @@ import { SK_STAT } from '../content/skills.ts';
 import { MUZZLE_Y } from '../content/tower-dims.ts';
 import { MORTAR_DEAD, SPEC, TT, UPC } from '../content/towers.ts';
 import { centreDist2, hurt, type Enemy } from './enemies.ts';
+import { isBurning } from './heroes.ts';
 import { pathAt } from './map.ts';
 import { int, range } from './rng.ts';
 import { fireArrow, fireBall, fireShard, freezeEnemy } from './projectiles.ts';
@@ -26,7 +27,7 @@ export const isAttack = (type: string): type is AttackType => ATTACK.includes(ty
 // ---------------------------------------------------------------- stats and costs
 
 /** Total War Council bonus to one stat of one tower type (and specialisation). */
-function skMod(g: Game, type: string, stat: 'dmg' | 'rng' | 'rate', spec: SpecKey | null) {
+export function skMod(g: Pick<Game, 'skills'>, type: string, stat: 'dmg' | 'rng' | 'rate', spec: SpecKey | null) {
   let v = 0;
   for (const [id, row] of Object.entries(SK_STAT) as [string, (string | number)[]][]) {
     const [t, st, val, sp] = row;
@@ -34,20 +35,20 @@ function skMod(g: Game, type: string, stat: 'dmg' | 'rng' | 'rate', spec: SpecKe
   }
   return v;
 }
-function skApply(g: Game, type: string, s: Stat, spec: SpecKey | null): Stat {
+function skApply(g: Pick<Game, 'skills'>, type: string, s: Stat, spec: SpecKey | null): Stat {
   const d = skMod(g, type, 'dmg', spec), r = skMod(g, type, 'rng', spec), q = skMod(g, type, 'rate', spec);
   if (d || r || q) { s.dmg *= 1 + d; s.range *= 1 + r; s.rate /= 1 + q; s.dps *= (1 + d) * (1 + q); }
   return s;
 }
 
 /** Level 1–3 stats: ×1.7 damage, +.7 range and ×.86 reload per level, then the War Council's bonuses. */
-export function tStat(g: Game, type: AttackType, lvl: number, sk = true): Stat {
+export function tStat(g: Pick<Game, 'skills'>, type: AttackType, lvl: number, sk = true): Stat {
   const d = TT[type];
   const s = { dmg: d.dmg * Math.pow(1.7, lvl - 1), range: d.range + 0.7 * (lvl - 1), rate: d.rate * Math.pow(0.86, lvl - 1), dps: d.dps * Math.pow(1.7, lvl - 1) / Math.pow(0.86, lvl - 1) };
   return sk ? skApply(g, type, s, null) : s;
 }
 /** Specialisation stats: its formula applied to level 3, then ×1.3 damage, +.4 range and ×.92 reload per rank. */
-export function specStat(g: Game, type: AttackType, k: SpecKey, rank = 1): Stat {
+export function specStat(g: Pick<Game, 'skills'>, type: AttackType, k: SpecKey, rank = 1): Stat {
   const s = tStat(g, type, 3, false); Object.assign(s, SPEC[type][k].st(s));
   const r = rank - 1; s.dmg *= Math.pow(1.3, r); s.range += 0.4 * r; s.rate *= Math.pow(0.92, r); s.dps *= Math.pow(1.3 / 0.92, r);
   return skApply(g, type, s, k);
@@ -55,8 +56,8 @@ export function specStat(g: Game, type: AttackType, k: SpecKey, rank = 1): Stat 
 /** Cost to reach rank 2 (80% of the specialisation) or rank 3 (110%), rounded to 10. */
 export const rankCost = (type: TowerType, k: SpecKey, rank: number) => Math.round(SPEC[type][k].cost * (rank === 2 ? 0.8 : 1.1) / 10) * 10;
 export const upCost = (t: Tower) => UPC[t.type][t.lvl - 1];
-export const sellRate = (g: Game) => (has(g, 'kingdom.treasury') ? 0.9 : has(g, 'kingdom.qm') ? 0.8 : 0.7);
-export const mortarDead = (g: Game) => (has(g, 'cannon.mortar') ? 2 : MORTAR_DEAD);
+export const sellRate = (g: Pick<Game, 'skills'>) => (has(g, 'kingdom.treasury') ? 0.9 : has(g, 'kingdom.qm') ? 0.8 : 0.7);
+export const mortarDead = (g: Pick<Game, 'skills'>) => (has(g, 'cannon.mortar') ? 2 : MORTAR_DEAD);
 /** Share of armour the Siege Mortar ignores: 40% / 50% / 60% by rank. */
 export const mortarPierce = (r: number) => 0.3 + 0.1 * r;
 /** Overload's beam build-up limit by rank: 3× / 4× / 5×. */
@@ -220,14 +221,14 @@ export function updateTower(g: Game, t: Tower, dt: number) {
   }
   if (ab.ember && t.cd.ember <= 0) { // Wall of Fire: three fire patches along the road in range
     const cand = g.map.samples.filter(p => (p.x - t.x) ** 2 + (p.z - t.z) ** 2 < st.range * st.range);
-    if (cand.length) { t.cd.ember = 6; const c = cand[int(rng, 0, cand.length - 1)]; for (let k = 0; k < 3; k++) { const q = pathAt(g.map.paths[c.path], c.d + k); g.firePatches.push({ x: q.x, z: q.z, t: 4, tick: 0 }); } }
+    if (cand.length) { t.cd.ember = 6; const c = cand[int(rng, 0, cand.length - 1)]; for (let k = 0; k < 3; k++) { const q = pathAt(g.map.paths[c.path], c.d + k); g.firePatches.push({ x: q.x, z: q.z, t: 4, tick: 0, sourceTower: t }); } }
   }
   if (ab.flashover && t.cd.flashover <= 0) { // Flashover: fire leaps from a burning enemy to its nearest unburnt neighbour
-    const src = g.enemies.find(o => o.alive && o.burn > 0 && inRange(t, o, st.range + 1));
+    const src = g.enemies.find(o => o.alive && isBurning(g, o) && inRange(t, o, st.range + 1));
     if (src) {
       let nb: Enemy | null = null, nd = 4;
-      for (const o of g.enemies) { if (!o.alive || o === src || o.def.air || o.burn > 0) continue; const d2 = centreDist2(o, src); if (d2 < nd) { nd = d2; nb = o; } }
-      if (nb) { t.cd.flashover = 1.5; g.events.push({ t: 'flashover', tower: t, from: src, e: nb }); nb.burn = ab.brand ? 4 : 1.6; hurt(g, nb, st.dmg * 3, 'true'); }
+      for (const o of g.enemies) { if (!o.alive || o === src || o.def.air || isBurning(g, o)) continue; const d2 = centreDist2(o, src); if (d2 < nd) { nd = d2; nb = o; } }
+      if (nb) { t.cd.flashover = 1.5; g.events.push({ t: 'flashover', tower: t, from: src, e: nb }); nb.burn = ab.brand ? 4 : 1.6; hurt(g, nb, st.dmg * 3, 'true', 0, t); }
     }
   }
   t.retarget -= dt;
@@ -258,10 +259,10 @@ export function updateTower(g: Game, t: Tower, dt: number) {
         if (!o.alive || o.def.air) continue;
         const dx = o.x - t.x, dz = o.z - t.z, dd = Math.hypot(dx, dz);
         if (dd > st.range + 0.3 || (dx * dir.x + dz * dir.z) / (dd || 1) < cosA) continue;
-        hurt(g, o, st.dmg, 'phys');
+        hurt(g, o, st.dmg, 'phys', 0, t);
         if (o.alive && has(g, 'cannon.knock') && o.type !== 'boss' && o.type !== 'gruk') o.d = Math.max(0, o.d - 0.6);
       }
-      if (has(g, 'cannon.breath')) g.firePatches.push({ x: e.x, z: e.z, t: 3, tick: 0 });
+      if (has(g, 'cannon.breath')) g.firePatches.push({ x: e.x, z: e.z, t: 3, tick: 0, sourceTower: t });
       return;
     }
     const spl = (sp === 'a' ? 2.8 + 0.2 * t.rank : TT.cannon.splash + 0.25 * (Math.min(t.lvl, 3) - 1)) * (has(g, 'cannon.powder') ? 1.12 : 1);
@@ -277,11 +278,11 @@ export function updateTower(g: Game, t: Tower, dt: number) {
       if (e !== t.lastBeam) t.charge = 1;
       else t.charge = Math.min(overloadCap(t.rank), t.charge + (overloadCap(t.rank) - 1) * st.rate / (has(g, 'tesla.over') ? 2 : 3));
       t.lastBeam = e;
-      hurt(g, e, st.dmg * t.charge, 'magic');
-      if (has(g, 'tesla.spill')) { let nb: Enemy | null = null, nd = 2.2 * 2.2; for (const o of g.enemies) { if (!o.alive || o === e) continue; const d2 = centreDist2(o, e); if (d2 < nd) { nd = d2; nb = o; } } if (nb) hurt(g, nb, st.dmg * t.charge * 0.35, 'magic'); }
+      hurt(g, e, st.dmg * t.charge, 'magic', 0, t);
+      if (has(g, 'tesla.spill')) { let nb: Enemy | null = null, nd = 2.2 * 2.2; for (const o of g.enemies) { if (!o.alive || o === e) continue; const d2 = centreDist2(o, e); if (d2 < nd) { nd = d2; nb = o; } } if (nb) hurt(g, nb, st.dmg * t.charge * 0.35, 'magic', 0, t); }
       if (ab.surge && t.charge >= 3.99 && t.cd.surge <= 0 && e.alive) { // Meltdown
-        t.cd.surge = 6; g.events.push({ t: 'surge', tower: t, e }); hurt(g, e, st.dmg * 12, 'magic');
-        for (const o of g.enemies) if (o.alive && o !== e && centreDist2(o, e) < 2.25) hurt(g, o, st.dmg * 6, 'magic');
+        t.cd.surge = 6; g.events.push({ t: 'surge', tower: t, e }); hurt(g, e, st.dmg * 12, 'magic', 0, t);
+        for (const o of g.enemies) if (o.alive && o !== e && centreDist2(o, e) < 2.25) hurt(g, o, st.dmg * 6, 'magic', 0, t);
       }
       return;
     }
@@ -290,7 +291,7 @@ export function updateTower(g: Game, t: Tower, dt: number) {
       let dmg = st.dmg; const path: Enemy[] = []; (fire.chains ??= []).push(path);
       for (let k = 0; k < n && cur; k++) {
         hit.add(cur); path.push(cur); if (ab.static) { cur.shockT = 2; cur.shockDmg = st.dmg * 0.3; }
-        hurt(g, cur, dmg * (cur.def.air && has(g, 'tesla.rod') ? 1.25 : 1), 'magic'); dmg *= falloff;
+        hurt(g, cur, dmg * (cur.def.air && has(g, 'tesla.rod') ? 1.25 : 1), 'magic', 0, t); dmg *= falloff;
         const from = cur, jr = sp === 'a' && has(g, 'tesla.super') ? 4.5 : 3.2; let nb: Enemy | null = null, nd = jr * jr;
         for (const o of g.enemies) { if (!o.alive || hit.has(o)) continue; const d2 = centreDist2(o, from); if (d2 < nd) { nd = d2; nb = o; } }
         cur = nb;
@@ -300,16 +301,16 @@ export function updateTower(g: Game, t: Tower, dt: number) {
     chain(e, n, fo);
     if (ab.fork && t.shots % 3 === 0) { const e2 = g.enemies.find(o => o.alive && !hit.has(o) && inRange(t, o, st.range)); if (e2) chain(e2, n, fo); }
   } else if (t.type === 'flame') {
-    if (sp === 'a') { t.napT -= st.rate; if (t.napT <= 0) { t.napT = 0.6; g.firePatches.push({ x: e.x + range(rng, -0.3, 0.3), z: e.z + range(rng, -0.3, 0.3), t: 3 + t.rank + (has(g, 'flame.line') ? 2 : 0), tick: 0 }); } }
+    if (sp === 'a') { t.napT -= st.rate; if (t.napT <= 0) { t.napT = 0.6; g.firePatches.push({ x: e.x + range(rng, -0.3, 0.3), z: e.z + range(rng, -0.3, 0.3), t: 3 + t.rank + (has(g, 'flame.line') ? 2 : 0), tick: 0, sourceTower: t }); } }
     const burnT = (ab.brand ? 4 : 1.6) + (has(g, 'flame.fuel') ? 1 : 0);
     const oil = (o: Enemy) => { if (o.alive && has(g, 'flame.oil')) { o.slowF = Math.min(o.slow > 0 ? o.slowF : 1, 0.85); o.slow = Math.max(o.slow, 0.6); } };
-    if (sp === 'b') { hurt(g, e, st.dmg, 'true'); e.burn = Math.max(e.burn, burnT); oil(e); return; } // Inferno: one focused stream
+    if (sp === 'b') { hurt(g, e, st.dmg, 'true', 0, t); e.burn = Math.max(e.burn, burnT); oil(e); return; } // Inferno: one focused stream
     const fx = e.x - t.x, fz = e.z - t.z, fl = Math.hypot(fx, fz) || 1; // the cone points from the tower at the target
     for (const o of g.enemies) {
       if (!o.alive || o.def.air) continue;
       const dx = o.x - t.x, dz = o.z - t.z, dd = Math.hypot(dx, dz);
       if (dd > st.range + 0.3) continue;
-      if ((dx * fx + dz * fz) / (fl * (dd || 1)) > (has(g, 'flame.nozzle') ? 0.77 : 0.82) || o === e) { hurt(g, o, st.dmg, 'true'); o.burn = Math.max(o.burn, burnT); oil(o); }
+      if ((dx * fx + dz * fz) / (fl * (dd || 1)) > (has(g, 'flame.nozzle') ? 0.77 : 0.82) || o === e) { hurt(g, o, st.dmg, 'true', 0, t); o.burn = Math.max(o.burn, burnT); oil(o); }
     }
   }
 }

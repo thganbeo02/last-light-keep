@@ -65,14 +65,17 @@ describe('drum abilities and timed War Council effects', () => {
     const g = game({ skills: ['drum.thund'] }), d = build(g, 'drum', 0), e = spawnEnemy(g, 'soldier', 5); e.x = d.x + 1; e.z = d.z;
     for (let i = 0; i < 12 * 30 - 2; i++) updateTower(g, d, DT);
     expect(e.stun).toBe(0); // not yet
+    expect(g.events.some(ev => ev.t === 'drumThunder')).toBe(false);
     for (let i = 0; i < 4; i++) updateTower(g, d, DT);
     expect(e.stun).toBe(0.5);
+    expect(g.events.filter(ev => ev.t === 'drumThunder')).toEqual([{ t: 'drumThunder', tower: d }]);
   });
   it('a War Horn with Charge pushes enemies back 1 every 20 s', () => {
     const g = game({ skills: ['drum.charge'] }), d = build(g, 'drum', 0); maxUp(g, d, 'a');
     const e = spawnEnemy(g, 'soldier', 5); e.x = d.x + 1; e.z = d.z;
     for (let i = 0; i < 20 * 30 + 2; i++) updateTower(g, d, DT);
     expect(e.d).toBe(4);
+    expect(g.events.filter(ev => ev.t === 'drumCharge')).toEqual([{ t: 'drumCharge', tower: d, pushed: [e] }]);
   });
   it('Bleed (4/s), Frost Bite (2/s while slowed) and the mark wear off', () => {
     const g = game({ skills: ['frost.bite'] }), e = spawnEnemy(g, 'runner', 5); e.hp = e.maxHp = 1000;

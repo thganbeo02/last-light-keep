@@ -13,9 +13,8 @@ npm install
 npm run dev      # http://localhost:5173 (Vite)
 npm run build    # writes dist/index.html, a single file with all JS, CSS and art inlined
 npm run preview  # serves the built dist/
-npm test         # Vitest: engine rules and the content parity check
+npm test         # Vitest: engine rules and simulator checks
 npm run typecheck
-npm run extract  # copies balance constants from src/main.js into src/content/
 ```
 
 ## Layout
@@ -23,20 +22,20 @@ npm run extract  # copies balance constants from src/main.js into src/content/
 | Path | What it holds |
 | --- | --- |
 | `index.html` | All the UI markup: HUD, title, world map, briefing, almanac, patch notes and the skill tree. |
-| `src/main.js` | The renderer and UI, split into sections marked `// ====` and `// ----` (scene, maps, enemy, tower and soldier models and their views, effects, camera, the engine bridge, input, spells, campaign, cloud save, War Council, patch notes, almanac, HUD, loop). It holds the balance constants the menus show, but no battle rules. |
+| `src/main.js` | The renderer and UI, split into sections marked `// ====` and `// ----` (scene, maps, enemy, tower and soldier models and their views, effects, camera, the engine bridge, input, spells, campaign, cloud save, War Council, patch notes, almanac, HUD, loop). It reads the shared balance data and draws the engine’s battle state. |
 | `src/utils.js` | Math, noise and colour helpers. |
 | `src/patches.json` | In-game patch notes, newest first. The first entry is the version the title screen shows. |
 | `src/style.css` | All the styles. |
 | `src/art/` | Painted art as WebP files. `almanac/` holds tower forms (`arrow-1` … `drum-b`), enemies (`e_*`) and soldiers (`u_*`), which load automatically through `import.meta.glob`. See `docs/ART.md`. |
 | `src/engine/` | The battle engine in TypeScript: every battle rule, pure and deterministic, with no DOM, Three.js, clock or `Math.random` (use `rng.ts`). The game runs it through the engine bridge in `main.js`. |
-| `src/content/` | Balance data generated from `main.js`'s constants by `npm run extract`. Don't edit it by hand: change the constant in `main.js` and re-extract. |
-| `test/` | Vitest tests. `content.test.ts` fails when `src/content` and `main.js` drift apart. |
-| `tools/` | Node scripts: content extraction, and the simulator (`npm run sim`), which plays Watch battles on the engine and compares them with `test/baseline.json`. |
-| `docs/` | The art pipeline, and the milestone plans and checklists (`M1.md` engine, `M2.md` renderer on the engine). |
+| `src/content/` | Shared balance data for the engine and UI. Edit the corresponding content module directly. |
+| `test/` | Vitest tests for the engine and simulator. |
+| `tools/` | The simulator (`npm run sim`), which plays Watch battles on the engine and compares them with `test/baseline.json`. |
+| `docs/` | The art pipeline and milestone checklists (`M1.md` engine, `M2.md` renderer on the engine, `M3.md` heroes). |
 
 ## Rules
 
-- **Battle rules live in `src/engine/` only.** `main.js` draws the engine's records, plays its events and sends the player's actions as inputs (the engine bridge section). A gameplay change is an engine change with a test; a balance number is a constant in `main.js`, then `npm run extract`. Run `npm test` and `npm run typecheck` before committing, and `npm run sim` after a balance change.
+- **Battle rules live in `src/engine/` only.** `main.js` draws the engine's records, plays its events and sends the player's actions as inputs (the engine bridge section). A gameplay change is an engine change with a test; change shared balance data in `src/content/`. Run `npm test` and `npm run typecheck` before committing, and `npm run sim` after a balance change.
 - **The rebuild:** work through the current milestone's doc in `docs/` in order and tick its steps in the same change; note any bug found there.
 
 - **Never change the save keys** `voxelSiege.stars.v1` and `voxelSiege.save.v2`, or the cloud document path `data/users/<id>/save`. They predate the rename, and live players' progress depends on them. If the save shape changes, update `mergeSave()` so that old saves still merge.

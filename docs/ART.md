@@ -22,10 +22,10 @@
     - Tower types (bronze rim, used by the build ring): `tower-arrow`, `tower-cannon`, `tower-frost`, `tower-tesla`, `tower-flame`, `tower-barracks`, `tower-drum`.
     - The originals (1254 px PNG) stay outside the repo.
 - [x] **Spell icons** in `src/art/spells/` (`militia`, `catapult`, `nova`): white background removed, 256 px WebP. The spell bar uses them. Taken from `spell-militiaman`, `spell-boulder-barrage-v2` and `spell-frost-burst`. Three other Frost Nova variants are unused.
-- [x] **Heroes: Aldric Vane and Corwin Ashguard.** Background cut to transparent, WebP. Not wired into the game yet; heroes arrive with the rebuild.
+- [x] **Heroes: Aldric Vane and Corwin Ashguard.** Battle selection, HUD portraits and abilities, and Almanac cards use the painted WebP art.
     - Badges: `src/art/badges/hero-aldric`, `hero-corwin` (256 px, iron rim with an ember edge, the hero family).
     - Ability icons: `src/art/heroes/ab-<ability>` (256 px): `rally-the-line`, `shield-wall`, `the-gate-holds` (Aldric); `kindle`, `ashen-ward`, `undying-coal` (Corwin).
     - Portraits: `src/art/heroes/<hero>-<expression>` (512 px): `neutral`, `determined`, `hurt`, `triumphant`.
     - Almanac cards: `src/art/almanac/u_aldric`, `u_corwin` (256 px).
     - The originals (1254 px PNG, portraits 512 px) stay outside the repo.
-- [ ] **Model reference sheets** (`aldric-sheet`, `corwin-sheet`): front, three-quarter, side and back, for building the voxel models.
+- [x] **Model reference sheets** for [Aldric](art/aldric-sheet.jpg) and [Corwin](art/corwin-sheet.jpg). The four views and palette swatches guided the voxel models. The sheets ship with the docs only.

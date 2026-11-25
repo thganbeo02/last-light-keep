@@ -2,7 +2,9 @@
 // the player's inputs. Also the battle's rules: calling waves (and the early-call bonus), the countdown between
 // waves, the wave-clear bonus, victory and stars. Ported from main.js (updateGame, startWave, sendWave, showEnd).
 import { drumPass } from './drum.ts';
+import type { HeroAbility } from '../content/heroes.ts';
 import { spawnEnemy, updateEnemy } from './enemies.ts';
+import { castHero, moveHero, updateHero } from './heroes.ts';
 import { updateProjectiles } from './projectiles.ts';
 import { rallyPick, setRally, updateSoldier } from './soldiers.ts';
 import { castSpell, spellSpot, spellsTick, type SpellKey } from './spells.ts';
@@ -21,6 +23,8 @@ export type Input =
   | { do: 'aim'; tower: number }
   | { do: 'rally'; tower: number; x: number; z: number }
   | { do: 'callWave' }
+  | { do: 'heroMove'; x: number; z: number }
+  | { do: 'heroCast'; k: HeroAbility; at?: { x: number; z: number }; targetTower?: number }
   | { do: 'cast'; k: SpellKey; x: number; z: number };
 
 /** Starts the next wave: queues its spawns. */
@@ -60,6 +64,8 @@ function apply(g: Game, i: Input) {
     case 'aim': if (tower) cycleAim(tower); break;
     case 'rally': if (tower?.type === 'barracks') { const r = rallyPick(g, tower, i.x, i.z); if (r) setRally(tower, r); } break;
     case 'callWave': sendWave(g, true); break;
+    case 'heroMove': if (g.hero?.unit.alive && !moveHero(g, i)) g.events.push({ t: 'heroMoveBlocked' }); break;
+    case 'heroCast': castHero(g, i.k, i.at, i.targetTower); break;
     case 'cast': { const q = spellSpot(g, i.k, i.x, i.z); if (q) castSpell(g, i.k, q); break; }
   }
 }
@@ -93,7 +99,8 @@ export function tick(g: Game, inputs: Input[] = [], dt = DT): GameEvent[] {
     if (g.mode !== 'play') { g.aiT -= dt; if (g.aiT <= 0) { g.aiT = 0.7; g.ai?.(g); } } // the AI player thinks every .7 s
   }
   for (const e of g.enemies) if (e.alive) updateEnemy(g, e, dt);
-  for (const s of g.soldiers) if (s.alive) updateSoldier(g, s, dt);
+  if (g.state === 'play') updateHero(g, dt);
+  for (const s of g.soldiers) if (s.alive && s !== g.hero?.unit) updateSoldier(g, s, dt);
   spellsTick(g, dt);
   g.soldiers = g.soldiers.filter(s => s.alive);
   drumPass(g, dt);

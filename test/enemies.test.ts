@@ -102,12 +102,14 @@ describe('damage', () => {
 
 describe('specials', () => {
   it('a Shaman heals hurt neighbours 8% every 2 s, measured centre to centre in 3D', () => {
-    const g = game(), s = one(g, 'shaman', 10), near = one(g, 'soldier', 11), far = one(g, 'soldier', 14);
-    near.hp = far.hp = near.maxHp / 2; s.healT = 0.01;
+    const g = game(), s = one(g, 'shaman', 10), near = one(g, 'soldier', 11), other = one(g, 'soldier', 9), far = one(g, 'soldier', 14);
+    one(g, 'soldier', 10.5); // already at full health
+    near.hp = other.hp = far.hp = near.maxHp / 2; s.healT = 0.01;
     updateEnemy(g, s, DT);
     expect(centreDist2(near, s)).toBeLessThan(6.8); expect(centreDist2(far, s)).toBeGreaterThan(6.8);
     expect(near.hp).toBeCloseTo(near.maxHp * 0.58); expect(far.hp).toBe(far.maxHp / 2);
     expect(s.healT).toBe(2);
+    expect(g.events.filter(ev => ev.t === 'heal')).toEqual([{ t: 'heal', e: s, healed: [near, other] }]);
   });
   it('Gruk roars once below half health, sending two Boar Riders ahead', () => {
     const g = game({ map: 3 }), gr = one(g, 'gruk', 20); gr.hp = gr.maxHp * 0.49;

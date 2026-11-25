@@ -2,6 +2,7 @@
 // Ported from main.js enemyCombat: hit timing, the Boar Rider's charge, the Ogre's cleave, bosses' splash.
 import { ATK } from '../content/enemies.ts';
 import type { Enemy } from './enemies.ts';
+import { heroBlocks, riderBreaksBlock } from './heroes.ts';
 import { hurtSoldier, type Soldier } from './soldiers.ts';
 import type { Game } from './state.ts';
 
@@ -10,9 +11,9 @@ type Attack = [dmg: number, every: number, reach: number, kind: 'phys' | 'magic'
 export function enemyCombat(g: Game, e: Enemy, dt: number): boolean {
   const A = (ATK as unknown as Record<string, Attack>)[e.type];
   if (!A || e.def.air || !g.soldiers.length) { e.blocker = null; return false; }
-  let foe: Soldier | null = e.blocker && e.blocker.alive && (e.blocker.target === e || e.blocker.extra === e) ? e.blocker : null;
+  let foe: Soldier | null = e.blocker && e.blocker.alive && (e.blocker.target === e || e.blocker.extra === e || heroBlocks(g, e.blocker, e)) ? e.blocker : null;
   if (!foe) e.blocker = null;
-  if (foe && e.type === 'rider' && !e.charged) { // the first block: the boar charges through for 12
+  if (foe && e.type === 'rider' && !e.charged && riderBreaksBlock(g, foe, e)) { // the first block: the boar charges through for 12
     e.charged = true; hurtSoldier(g, foe, 12, 'phys');
     if (foe.target === e) foe.target = null; if (foe.extra === e) foe.extra = null; e.blocker = null;
     return false;

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-25 — 3.3 Captain and Coal
+
+- Added Aldric Vane and Corwin Ashguard as pre-battle and replay picks, with HUD abilities, animated voxel rigs, and eight playable Almanac clips each. Hero movement cuts across clear terrain and interpolates between engine ticks.
+- Restored War Drum ability effects and per-target Shaman heal sparkles. The UI and engine now read the same balance data from `src/content/`.
+- Verified with `npm test` (120 tests), `npm run typecheck`, `npm run build`, and `git diff --check`. Chrome verified Corwin’s eight clips, playback controls, movement, and Kindle. Watch benchmarks match the pre-release engine on all seven maps. River Crossing, Highland Pass, and Ember Crater retain their existing gaps against the 3.2 recording.
+- Hero balance is a first pass.
+
 ## 2026-11-24
 
 - Milestone 2 (branch `m2/renderer-port`): battles run on the engine. `main.js` draws the engine's records (enemies, towers, soldiers, projectiles, ground patches), plays its events as effects, and sends the player's actions as inputs; about 850 lines of 3.x battle rules are deleted. The baseline is re-recorded from 3.2 with the Shaman fix. Tesla chains, Meltdown and Flashover now carry drawing info in their engine events.

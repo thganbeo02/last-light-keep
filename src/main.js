@@ -1,9 +1,23 @@
 import * as THREE from 'three';
+import { poseHero } from './hero-animation.js';
 import { V3, rand, randi, pick, clamp, lerp, smooth, ease, lerpAngle, hash, vnoise, fbm, tmpC, vary } from './utils.js';
 import PATCHES from './patches.json';
-import { makeGame as eMakeGame } from './engine/state.ts';
+import { makeGame as eMakeGame, has as hasSkill } from './engine/state.ts';
+import { barrAsStat, barrStat as eBarrStat } from './engine/soldiers.ts';
+import { drumAsStat, drumStat as eDrumStat } from './engine/drum.ts';
+import { spellsFor } from './engine/spells.ts';
+import { rankCost, upCost, mortarPierce, overloadCap, tStat as eTStat, specStat as eSpecStat, skMod as eSkMod, mortarDead as eMortarDead, sellRate as eSellRate } from './engine/towers.ts';
 import { tick as eTick, DT as EDT } from './engine/game.ts';
 import { makeWatchGame } from './engine/ai.ts';
+import { heroRoadSpot, isBurning } from './engine/heroes.ts';
+import { MAPS, LIQ } from './content/maps.ts';
+import { ED, ATK, ATKX } from './content/enemies.ts';
+import { TT, DTYPE, DNAME, SPEC, UPC } from './content/towers.ts';
+import { HEROES, HERO_ABILITIES, HERO_ABILITY_TEXT } from './content/heroes.ts';
+import { BARR, SOL_INFO, SOL_REGEN, SOL_FIRST, SOL_LAST, DRUM } from './content/barracks.ts';
+import { SPELLS } from './content/spells.ts';
+import { AREAS, LEVELS, UNLOCKS, DIFFS, BOUNTY } from './content/campaign.ts';
+import { SK as SK_DATA, SK_WHEN } from './content/skills.ts';
 
 // utils: see utils.js
 
@@ -111,48 +125,6 @@ function makeBatch(list, mat, cast = true, recv = true) {
 const W = 46, H = 32;
 const gx2w = g => g - W / 2 + .5, gz2w = g => g - H / 2 + .5;
 const id = (x, z) => z * W + x;
-// units: type -> [first wave, base count, extra per wave]; bosses: wave -> count
-const MAPS = [
-  { key: 'mill', name: 'Millbrook Fields', blurb: 'Open farmland outside the castle walls. A gentle road, plenty of room to build, and only goblins and orcs.',
-    theme: 'meadow', waves: 6, gold: 200, hpBase: .8, growth: [1.3, 1.36], plots: 12, castle: [42, 19],
-    paths: [[[0, 8], [15, 8], [15, 23], [30, 23], [30, 11], [42, 11], [42, 15]]],
-    liquid: null, village: [17, 25, 28, 30], hills: .5,
-    units: { runner: [1, 3, 1], soldier: [2, 1, .8], brute: [6, 0, 1] }, bosses: {} },
-  { key: 'river', name: 'River Crossing', blurb: 'The road crosses the river by a wooden bridge. Cave bats fly straight over the water.',
-    theme: 'meadow', waves: 10, gold: 250, hpBase: 1, growth: [1.32, 1.41], plots: 16, castle: [41, 21],
-    paths: [[[0, 6], [9, 6], [9, 15], [4, 15], [4, 26], [17, 26], [17, 10], [25, 10], [25, 21], [36, 21], [36, 9], [41, 9], [41, 17]]],
-    liquid: { kind: 'water', axis: 'z', c: z => 31 + 1.6 * Math.sin(z * .28 + .5), w: 1.45 },
-    village: [6, 17, 15, 24], hills: 1,
-    units: { runner: [1, 3, 1.5], soldier: [1, 2, 1.15], flyer: [3, 1, .75], brute: [5, 0, .5] }, bosses: {} },
-  { key: 'thorn', name: 'Thornwood', blurb: 'A forest road that doubles back on itself. Short sight lines suit the new Flame Tower, and goblin sappers go for your towers.',
-    theme: 'forest', waves: 10, gold: 280, hpBase: .95, growth: [1.3, 1.38], plots: 14, castle: [41, 19], trees: 1.9,
-    paths: [[[0, 16], [7, 16], [7, 5], [15, 5], [15, 26], [23, 26], [23, 6], [32, 6], [32, 12], [41, 12], [41, 15]]],
-    liquid: null, village: [25, 16, 30, 23], hills: .8,
-    units: { runner: [1, 3, 1.3], soldier: [1, 2, 1], sapper: [2, 1, .5], flyer: [3, 1, .6], brute: [4, 0, .5] }, bosses: {} },
-  { key: 'mire', name: 'Mire’s Edge', blurb: 'The road wades through a bog on an old causeway. Boar riders charge, and Gruk the Mire-King waits at the end.',
-    theme: 'mire', waves: 12, gold: 280, hpBase: 1.1, growth: [1.3, 1.37], plots: 14, castle: [41, 19],
-    paths: [[[0, 5], [9, 5], [9, 26], [20, 26], [20, 5], [31, 5], [31, 12], [41, 12], [41, 15]]],
-    liquid: { kind: 'bog', lake: [14.5, 15.5, 3, 6] }, village: [23, 16, 29, 23], hills: .6,
-    bog: [[.24, .4], [.56, .7]],
-    units: { runner: [1, 3, 1.3], soldier: [1, 2, 1.1], rider: [2, 1, .9], sapper: [3, 1, .4], flyer: [3, 1, .7], shaman: [5, 1, .35], brute: [5, 0, .55], gruk: [12, 1, 0] }, bosses: {} },
-  { key: 'pass', name: 'Highland Pass', blurb: 'Switchbacks through the mountains. Armoured knights, healing shamans and stone golems join the horde.',
-    theme: 'alpine', waves: 12, gold: 300, hpBase: 1.15, growth: [1.27, 1.325], plots: 16, castle: [40, 19],
-    paths: [[[0, 4], [13, 4], [13, 13], [4, 13], [4, 24], [22, 24], [22, 5], [33, 5], [33, 12], [40, 12], [40, 15]]],
-    liquid: null, village: [25, 15, 31, 21], hills: 1.7,
-    units: { runner: [1, 3, 1.2], soldier: [1, 2, 1], knight: [2, 1, .7], shaman: [3, 1, .35], brute: [4, 0, .4], golem: [5, 0, .45], flyer: [6, 1, .6] }, bosses: { 6: 1, 12: 1 } },
-  { key: 'frost', name: 'Frostmere', blurb: 'A frozen lake and two roads in. Ghostly wraiths fly over, and arrows pass straight through them.',
-    theme: 'snow', waves: 12, gold: 320, hpBase: 1.25, growth: [1.26, 1.32], plots: 18, castle: [41, 19],
-    paths: [[[0, 6], [8, 6], [8, 26], [24, 26], [24, 20], [34, 20], [34, 10], [41, 10], [41, 15]],
-            [[20, 0], [20, 14], [24, 14], [24, 20], [34, 20], [34, 10], [41, 10], [41, 15]]],
-    liquid: { kind: 'ice', lake: [14, 18, 3.6, 5] }, village: [26, 22, 33, 28], hills: 1.1,
-    units: { runner: [1, 4, 1.3], soldier: [1, 2, 1], wraith: [2, 1, .8], flyer: [3, 1, .6], knight: [4, 1, .6], shaman: [5, 1, .35], brute: [6, 0, .5], golem: [8, 0, .4] }, bosses: { 6: 1, 12: 2 } },
-  { key: 'crater', name: 'Ember Crater', blurb: 'Ash fields split by a river of lava. Two portals, every enemy type, and three Warlords.',
-    theme: 'ember', waves: 15, gold: 380, hpBase: 1.35, growth: [1.24, 1.275], plots: 18, castle: [38, 19],
-    paths: [[[0, 10], [9, 10], [9, 3], [18, 3], [18, 24], [30, 24], [30, 8], [38, 8], [38, 15]],
-            [[0, 28], [24, 28], [24, 24], [30, 24], [30, 8], [38, 8], [38, 15]]],
-    liquid: { kind: 'lava', axis: 'x', c: x => 16 + 1.5 * Math.sin(x * .3 + 1), w: 1.3, maxX: 32 }, village: [10, 20, 16, 25], hills: 1.2,
-    units: { runner: [1, 4, 1.2], soldier: [1, 3, .9], knight: [2, 1, .6], shaman: [3, 1, .3], flyer: [3, 1, .5], wraith: [4, 1, .6], brute: [5, 0, .45], golem: [6, 0, .4] }, bosses: { 5: 1, 10: 1, 15: 2 } },
-];
 const THEMES = {
   meadow: { grass: [.27, .62, .31], dirt: 0x7a5a3a, path: 0xc9a56b, rock: 0x7d7a74, snowAt: 5, stoneAt: 4, trees: 'mixed', flowers: true, tint: null },
   mire: { grass: [.22, .4, .27], dirt: 0x4a3a2a, path: 0x8a6c46, rock: 0x6a6a5e, snowAt: 9, stoneAt: 9, trees: 'mixed', flowers: false, tint: [0x7a9a6a, .3] },
@@ -160,12 +132,6 @@ const THEMES = {
   alpine: { grass: [.24, .38, .34], dirt: 0x6a5a48, path: 0xb39c7a, rock: 0x85817a, snowAt: 4, stoneAt: 3, trees: 'pine', flowers: true, tint: null },
   snow: { grass: [.58, .25, .9], dirt: 0x6a6e78, path: 0xa49482, rock: 0x7a7e86, snowAt: 2, stoneAt: 9, trees: 'snowpine', flowers: false, tint: [0xdde8f2, .25] },
   ember: { grass: [.04, .16, .24], dirt: 0x4a3c36, path: 0xa88a6a, rock: 0x4a3e3a, snowAt: 99, stoneAt: 3, trees: 'dead', flowers: false, tint: [0x9a5a3a, .45] },
-};
-const LIQ = {
-  water: { color: 0x3d8fd6, emissive: 0x0b2f55, opacity: .82, bob: .045, y: .55, ground: .7 },
-  lava: { color: 0xff6a1a, emissive: 0xff3a00, opacity: 1, bob: .03, y: .45, ground: .6 },
-  bog: { color: 0x4f6a34, emissive: 0x12200a, opacity: .92, bob: .02, y: .5, ground: .65 },
-  ice: { color: 0xcfeefa, emissive: 0x2a4a5a, opacity: .95, bob: 0, y: .6, ground: .75 },
 };
 
 // world state, rebuilt for every map
@@ -785,21 +751,6 @@ function bolt(a, b, col) {
 }
 
 // ================================================================ enemies
-// armor: share of physical damage blocked; mr: share of magic damage blocked. True damage ignores both.
-const ED = {
-  runner: { name: 'Goblin', title: 'Goblin Raider', desc: 'Quick and fragile. Goblins rush in packs of three to five, so splash damage shreds them.', weak: 'Anything; Cannon splash and Flame Tower', hp: 29, speed: 3.0, reward: 4, dmg: 3, air: false, armor: 0, mr: 0, bw: .6, step: 15 },
-  soldier: { name: 'Orc', title: 'Orc Spearman', desc: 'The backbone of the horde. Its shield and leather blunt arrows a little.', weak: 'Tesla Coil, Frost Spire', hp: 75, speed: 1.85, reward: 6, dmg: 5, air: false, armor: .3, mr: 0, bw: .8, step: 9 },
-  knight: { name: 'Knight', title: 'Iron Knight', desc: 'Full plate armour turns away most arrows and cannonballs. Magic goes straight through it.', weak: 'Tesla Coil, Frost Spire, Flame Tower', hp: 143, speed: 1.5, reward: 12, dmg: 6, air: false, armor: .7, mr: 0, bw: .85, step: 8 },
-  shaman: { name: 'Shaman', title: 'Goblin Shaman', desc: 'A masked healer. Every 2 seconds it restores 8% health to nearby enemies. Its charms resist magic.', weak: 'Archer Tower, Cannon (kill it first)', hp: 91, speed: 1.6, reward: 12, dmg: 4, air: false, armor: 0, mr: .6, bw: .7, step: 9 },
-  brute: { name: 'Ogre', title: 'Ogre Brute', desc: 'Huge health and a heavy club. Slow, but each one that reaches the gate hits hard.', weak: 'Frost Spire slow, then anything', hp: 299, speed: 1.0, reward: 15, dmg: 12, air: false, armor: .2, mr: 0, bw: 1.15, step: 5 },
-  golem: { name: 'Golem', title: 'Rune Golem', desc: 'Living stone carved with runes that soak up magic. Slow and very tough.', weak: 'Cannon, Archer Tower, Flame Tower', hp: 494, speed: .8, reward: 26, dmg: 14, air: false, armor: .3, mr: .75, bw: 1.2, step: 4 },
-  flyer: { name: 'Bat', title: 'Cave Bat', desc: 'Flies over the path. Cannons and Flame Towers cannot reach it.', weak: 'Archer Tower, Tesla Coil, Frost Spire', hp: 55, speed: 2.3, reward: 7, dmg: 4, air: true, armor: 0, mr: 0, bw: .7, step: 13 },
-  wraith: { name: 'Wraith', title: 'Frost Wraith', desc: 'A flying ghost. Arrows pass almost straight through it, and Cannons and Flame Towers cannot reach it.', weak: 'Tesla Coil, Frost Spire', hp: 78, speed: 2.0, reward: 12, dmg: 5, air: true, armor: .85, mr: 0, bw: .7, step: 6 },
-  sapper: { name: 'Sapper', title: 'Goblin Sapper', desc: 'Hauls a bomb. It stops beside the first tower it reaches and plants a charge that knocks that tower out for 5 seconds.', weak: 'Archer Tower and Cannon: kill it before it reaches your towers', hp: 52, speed: 2.2, reward: 8, dmg: 4, air: false, armor: 0, mr: 0, bw: .65, step: 13 },
-  rider: { name: 'Boar Rider', title: 'Boar Rider', desc: 'A goblin on a war boar. Fast, and it charges straight through the first slow or freeze that hits it.', weak: 'Cannon splash, Archer Tower, a second slow', hp: 72, speed: 2.6, reward: 9, dmg: 5, air: false, armor: .1, mr: 0, bw: .8, step: 14 },
-  gruk: { name: 'Gruk', title: 'Gruk the Mire-King', desc: 'Chieftain of the bog trolls. Slows wear off him twice as fast, every 12 s his Mire Stomp stuns towers within 2.5 tiles for 2 s, and at half health two Boar Riders charge out ahead of him.', weak: 'Cannon and Flame Tower, with slows kept on him', hp: 1820, speed: .7, reward: 120, dmg: 30, air: false, armor: .2, mr: .1, bw: 2.0, step: 3 },
-  boss: { name: 'Warlord', title: 'Stone Warlord', desc: 'Leader of the horde. Enormous health and armour against both physical and magic damage.', weak: 'Frost Spire slow, then Flame Tower', hp: 2210, speed: .62, reward: 140, dmg: 34, air: false, armor: .4, mr: .4, bw: 2.2, step: 2.6 },
-};
 const ES = 1.25; // enemy model scale
 const wraithMat = new THREE.MeshLambertMaterial({ color: 0xcfe6ff, emissive: 0x4a6a9a, transparent: true, opacity: .62 });
 function limb(par, x, y, z, w, h, d, c) { const p = new THREE.Group(); p.position.set(x, y, z); par.add(p); P(p, 0, -h / 2, 0, w, h, d, c); return p; }
@@ -1740,10 +1691,94 @@ const guard = F => human(F, { tunic: 0x9a9aa8, plate: true, legMetal: true, taba
 const paladin = F => human(F, { tunic: 0xf0ece0, plate: true, legMetal: true, metal: 0xece6da, beard: 0x7a3a1a, sun: true, cape: 0xf4f0e6, helm: 'paladin', weapon: 'hammer', shield: 'sun', pauldron: true });
 const militia = F => human(F, { tunic: 0x8a6a3a, pants: 0x5a4a2a, hem: 0xc8a878, helm: 'none', weapon: 'fork', shield: 'round' });
 const ranger = F => human(F, { tunic: 0x5a8a24, pants: 0x4a7a24, hem: 0x8a5a2a, cape: 0x5a8a24, helm: 'hood', weapon: 'bow', quiver: true });
+// Hero turnarounds are in docs/art. Keep the moving parts in the same rig as the soldiers.
+function heroModel(F, aldric) {
+  const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
+  const ink = 0x26212b, iron = 0x737483, steel = 0xadaaaf, blue = 0x434e76;
+  const cloth = 0x443640, skin = aldric ? 0xc48b66 : 0xb77a59, gold = 0xc28b39, leather = 0x594034;
+  const box = (x, y, z, w, h, d, color, glow = false) => add(body, boxGeo, F.m(color, { basic: glow }), x, y, z, [w, h, d]);
+  for (const sign of [-1, 1]) {
+    const x = sign * .14;
+    R_('legs', [x, .63, 0]);
+    box(x, .38, 0, .22, .51, .25, aldric ? iron : ink);
+    box(x, .10, .04, .24, .19, .34, leather);
+    box(x, .27, .07, .23, .16, .21, aldric ? steel : cloth);
+    R_();
+  }
+  box(0, .86, 0, .53, .54, .38, aldric ? iron : cloth);
+  box(0, .66, .02, .55, .10, .43, leather);
+  box(0, .66, .25, .13, .11, .03, gold);
+  box(0, 1.27, .02, .39, .39, .32, skin);
+  box(0, 1.12, .17, .29, .10, .06, aldric ? 0x59505a : 0x4b302a);
+  for (const sign of [-1, 1]) {
+    box(sign * .09, 1.31, .183, .065, .03, .016, ink);
+    box(sign * .087, 1.343, .184, .10, .033, .021, 0x49332d);
+  }
+  box(0, 1.25, .195, .065, .075, .055, skin);
+  if (aldric) {
+    box(0, 1.47, -.015, .45, .13, .36, 0x4c342f);
+    for (const sign of [-1, 1]) {
+      box(sign * .19, 1.39, -.015, .08, .11, .30, steel);
+      box(sign * .085, 1.55, -.03, .14, .07, .28, 0x4c342f);
+      box(sign * .32, 1.03, 0, .24, .17, .42, steel);
+      box(sign * .15, .72, -.24, .26, .51 + sign * .08, .09, blue);
+    }
+    box(0, .9, .205, .32, .36, .05, blue);
+    box(0, .49, .224, .21, .33, .06, blue);
+    box(0, .91, .24, .12, .15, .02, ink);
+    for (const x of [-.05, 0, .05]) box(x, 1.0, .24, .026, .04, .02, ink);
+  } else {
+    box(0, 1.46, -.03, .49, .20, .43, cloth);
+    box(0, 1.26, -.17, .46, .36, .20, cloth);
+    for (const sign of [-1, 1]) {
+      box(sign * .22, 1.27, .03, .09, .32, .35, cloth);
+      box(sign * .25, 1.06, 0, .21, .17, .45, 0x52404a);
+      box(sign * .17, .47, -.01, .25, .40 + sign * .12, .46, cloth);
+      box(sign * .28, .32 + sign * .06, -.005, .09, .07, .43, 0x913f22);
+    }
+    box(-.07, .81, .228, .10, .53, .05, 0xa3876c);
+    box(-.07, 1.061, .264, .10, .09, .032, gold);
+    box(-.15, 1.245, .19, .045, .14, .015, 0x99463a);
+  }
+  for (const sign of [-1, 1]) {
+    const x = sign * .34;
+    R_('arms', [x, 1.01, 0]);
+    box(x, .79, .015, .16, .35, .19, aldric ? iron : cloth);
+    box(x, .64, .09, .17, .14, .18, aldric ? leather : skin);
+    if (!aldric && sign === -1) {
+      for (const y of [.70, .75, .80]) box(x, y, .03, .18, .04, .21, 0xc0a287);
+    }
+    if (aldric && sign === -1) {
+      box(x, .67, .27, .064, .067, .39, leather);
+      box(x, .67, .40, .23, .065, .052, gold);
+      box(x, .67, .68, .084, .055, .52, steel);
+      box(x, .67, .96, .055, .04, .09, steel);
+    }
+    if (aldric && sign === 1) {
+      box(x + .04, .75, .24, .38, .42, .10, gold);
+      box(x + .04, .75, .30, .29, .32, .05, blue);
+      box(x + .04, .47, .24, .25, .15, .10, gold);
+      box(x + .04, .36, .24, .12, .08, .09, gold);
+      box(x + .04, .71, .335, .105, .16, .02, ink);
+      for (const k of [-.047, 0, .047]) box(x + .04 + k, .81, .335, .025, .05, .02, ink);
+    }
+    if (!aldric && sign === 1) {
+      box(x + .05, .57, .14, .04, .16, .04, ink);
+      for (const y of [.48, .24]) box(x + .05, y, .14, .25, .055, .24, ink);
+      for (const ax of [-.10, .10]) for (const az of [-.10, .10]) box(x + .05 + ax, .36, .14 + az, .038, .23, .038, iron);
+      box(x + .05, .35, .14, .15, .15, .15, 0xff8c26, true);
+      box(x + .05, .37, .223, .08, .10, .02, 0xffd36a, true);
+    }
+    R_();
+  }
+  return root;
+}
+const aldric = F => heroModel(F, true);
+const corwin = F => heroModel(F, false);
 // material tags: the builders ask for colours and finishes; merging sorts parts into four shared materials
 const EF = { m(color, o = {}) { const m = new THREE.MeshBasicMaterial({ color, side: o.side || THREE.FrontSide, vertexColors: !!o.vc }); m.userData.o = o; return m; } };
-const BUILDERS = { runner: goblin, soldier: orc, knight, shaman, brute: ogre, golem, flyer: bat, wraith, boss: warlord, rider, gruk, sapper, footman, shieldman, guard, paladin, ranger, militia };
-const SCALE = { runner: .7, soldier: .76, knight: .76, shaman: .8, brute: 1.08, golem: 1.1, flyer: .6, wraith: .65, boss: 1.55, rider: .78, gruk: 1.32, sapper: .7, footman: .7, shieldman: .7, guard: .72, paladin: .74, ranger: .7, militia: .66 };
+const BUILDERS = { runner: goblin, soldier: orc, knight, shaman, brute: ogre, golem, flyer: bat, wraith, boss: warlord, rider, gruk, sapper, footman, shieldman, guard, paladin, ranger, militia, aldric, corwin };
+const SCALE = { runner: .7, soldier: .76, knight: .76, shaman: .8, brute: 1.08, golem: 1.1, flyer: .6, wraith: .65, boss: 1.55, rider: .78, gruk: 1.32, sapper: .7, footman: .7, shieldman: .7, guard: .72, paladin: .74, ranger: .7, militia: .66, aldric: 1, corwin: .94 };
 const toonRamp = (() => { const d = new Uint8Array([85, 85, 85, 255, 155, 155, 155, 255, 212, 212, 212, 255, 240, 240, 240, 255]); const t = new THREE.DataTexture(d, 4, 1); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t; })();
 const MATS = {
   toon: new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonRamp }),
@@ -1920,7 +1955,7 @@ class Enemy {
   static of(src) { const e = new Enemy(src.type, src.d, 1, PATHS[src.path]); e.src = src; e.id = src.id; e.view(0); return e; }
   view(dt) {
     const s = this.src;
-    if (s.hp < this.hp - .05 && !(s.burn > 0 && this.hp - s.hp < 1)) this.flash = .09;
+    if (s.hp < this.hp - .05 && !((s.burn > 0 || s.heroBurns?.length || s.wardBurnUntil > G.time) && this.hp - s.hp < 1)) this.flash = .09;
     for (const k of EVIEW) this[k] = s[k];
     this.g.position.set(s.x, s.y, s.z); this.heading = this.g.rotation.y = s.heading; this.center.set(s.x, s.y + this.cy, s.z);
     const c = this.center;
@@ -1953,7 +1988,7 @@ class Enemy {
     if (this.type === 'boss' && Math.random() < dt * 14) glow.spawn(this.center.x + rand(-.6, .6), this.center.y + rand(0, 1), this.center.z + rand(-.6, .6), rand(-.3, .3), rand(.6, 1.6), rand(-.3, .3), rand(.5, 1), rand(.06, .12), 0xff8a2a, 0, F_SPIN, 0, 0x501000);
     if (this.type === 'runner' && Math.random() < dt * 3) fxDust(this.g.position, 1, .15);
     // burning
-    if (this.burn > 0) {
+    if (this.src && isBurning(G, this.src)) {
       if (Math.random() < dt * 25) glow.spawn(this.center.x + rand(-.25, .25), this.center.y + rand(-.2, .4), this.center.z + rand(-.25, .25), 0, rand(1, 2), 0, rand(.3, .5), rand(.1, .2), FIRE1, -1, F_SPIN, 1, FIRE2);
     }
     this.shellM.visible = this.slow > 0 || this.freeze > 0;
@@ -2013,53 +2048,16 @@ function updateCastleDamage() {
 }
 
 // ================================================================ towers
-const TT = {
-  arrow: { name: 'Archer Tower', cost: 60, range: 6.6, rate: .6, dmg: 10, air: true, col: 0x3f8f3f, dps: 17 },
-  cannon: { name: 'Cannon', cost: 100, range: 6.4, rate: 2.0, dmg: 34, air: false, splash: 1.8, col: 0x4a4f5a, dps: 34 },
-  frost: { name: 'Frost Spire', cost: 80, range: 5.6, rate: 1.05, dmg: 7, air: true, col: 0x5fd0ff, dps: 22 },
-  tesla: { name: 'Tesla Coil', cost: 125, range: 5.5, rate: 1.4, dmg: 24, air: true, chain: 3, col: 0x9a7bff, dps: 40 },
-  flame: { name: 'Flame Tower', cost: 105, range: 3.9, rate: .1, dmg: 3.0, air: false, col: 0xff6a20, dps: 52 },
-  barracks: { name: 'Barracks', cost: 90, range: 2.5, rate: 1, dmg: 4, air: false, col: 0x2a5ad0, dps: 12 },
-  drum: { name: 'War Drum', cost: 110, range: 5, rate: 1, dmg: 0, air: true, col: 0xc83a2a, dps: 0 },
-};
 const TYPES = Object.keys(TT);
 
-const DTYPE = { arrow: 'phys', cannon: 'phys', frost: 'magic', tesla: 'magic', flame: 'true', barracks: 'phys', drum: 'sup' };
-const DNAME = { phys: 'Physical', magic: 'Magic', true: 'True', sup: 'Support' };
 const DCOL = { phys: '#e8c890', magic: '#b89aff', true: '#ff9a6a', sup: '#f0c860' };
 // level 4: after level 3, each tower picks one of two specialisations
-const SPEC = {
-  arrow: {
-    a: { name: 'Longbow', now: 'One marksman with a huge bow fires slow, heavy shots. Aims at the strongest enemy.', short: 'Heavy shots at the strongest enemy', cost: 220, desc: 'One marksman with a huge bow: range 11, 2.5x damage, slower shots. Aims at the strongest enemy.', st: s => ({ dmg: s.dmg * 2.5, range: 11, rate: s.rate * 1.6, dps: s.dps * 1.6 }) },
-    b: { name: 'Volley', now: 'Archers shoot different enemies with every volley.', short: 'Several archers fire at different targets', cost: 220, desc: 'Several archers shoot different enemies with every volley.', st: s => ({ dmg: s.dmg * 1.1, rate: s.rate * .85, dps: s.dps * 2.6 }) } },
-  cannon: {
-    a: { name: 'Siege Mortar', now: 'A huge mortar whose slow blasts punch through armor. Cannot hit enemies within 3 tiles.', short: 'Armor-piercing blasts; cannot fire within 3 tiles', cost: 300, desc: 'A huge mortar: range 12, splash radius 3, 1.3x damage that ignores 40% of armor, slower fire. Cannot hit enemies within 3 tiles.', st: s => ({ dmg: s.dmg * 1.3, range: 12, rate: s.rate * 1.4, dps: s.dps * 1.25 }) },
-    b: { name: 'Scattergun', now: 'A flared barrel fires an instant cone of shot that hits every ground enemy in a 70 degree cone.', short: 'Short-range blasts; best beside a bend', cost: 280, desc: 'A flared barrel fires an instant cone of shot: range 4.5, hits every ground enemy in a 70 degree cone.', st: s => ({ dmg: s.dmg * 1.3, range: 4.5, rate: s.rate * .7, dps: s.dps * 2 }) } },
-  frost: {
-    a: { name: 'Deep Freeze', now: 'Heavy shards aimed at the strongest enemy slow it to 25% speed.', short: 'Holds one dangerous enemy in place', cost: 240, desc: 'Heavy shards aimed at the strongest enemy slow it to 25% speed for 3 s.', st: s => ({ dmg: s.dmg * 1.4, dps: s.dps * 1.05 }) },
-    b: { name: 'Glacier Field', now: 'Shards burst on impact and slow nearby enemies to 45% speed.', short: 'Slows groups across a stretch of road', cost: 260, desc: 'Shards burst on impact and slow every enemy within 1.6 tiles to 45% speed.', st: s => ({ dps: s.dps * 1.6 }) } },
-  tesla: {
-    a: { name: 'Storm', now: 'Lightning chains through crowds and loses only 15% damage per jump.', short: 'Lightning chains through crowds', cost: 340, desc: 'Lightning chains to 8 enemies and loses only 15% damage per jump.', st: s => ({ dmg: s.dmg * 1.15, dps: s.dps * 1.7 }) },
-    b: { name: 'Overload', now: 'A constant beam on one enemy. Its damage builds the longer it holds the same target.', short: 'A beam ramps up while it holds one target', cost: 340, desc: 'A constant beam on one enemy. Its damage builds up to 3x over 3 seconds while it holds the same target.', st: s => ({ dmg: s.dmg * .21, rate: .12, dps: s.dps * 1.3 }) } },
-  flame: {
-    a: { name: 'Fireline', now: 'Leaves pools of burning napalm on the path that burn anything walking through.', short: 'Controls a stretch of ground with lingering fire', cost: 300, desc: 'Leaves pools of burning napalm on the path for 4 s that burn anything walking through.', st: s => ({ dmg: s.dmg * 1.1, dps: s.dps * 1.6 }) },
-    b: { name: 'Inferno', now: 'A narrow, white-hot jet on one enemy. Aims at the strongest enemy.', short: 'Burns down one durable target', cost: 300, desc: 'A narrow, white-hot jet on one enemy: 2.2x damage, longer range. Aims at the strongest enemy.', st: s => ({ dmg: s.dmg * 2.2, range: s.range + .8, dps: s.dps * 1.1 }) } },
-  barracks: {
-    a: { name: 'Paladins', now: 'Holy knights who heal between fights; every fourth hit is a holy strike.', short: 'Tough healers with holy strikes', cost: 260, desc: 'Three Paladins: 275 health, 35% armor and 30% magic resist. They heal 5% health per second out of combat (other soldiers 2%), and every fourth hit is a holy strike for 40 true damage.', st: s => ({}) },
-    b: { name: 'Rangers', now: 'Three rangers shoot arrows and hit flyers. Rally them off the road for Overwatch.', short: 'Archers that also hit flyers', cost: 250, desc: 'Three Rangers shoot arrows from up to 4 tiles away, hitting ground and air. Rally them on the road to block, or off the road for Overwatch: shoot only, never block.', st: s => ({}) } },
-  drum: {
-    a: { name: 'War Horn', now: 'A great horn: boosted towers fire faster and also reach further.', short: 'Boosted towers reach further', cost: 280, desc: 'Towers within 6 tiles fire 30% faster and get +20% range.', st: s => ({}) },
-    b: { name: 'Hex Totem', now: 'A cursed totem: enemies inside its radius take extra damage from everything.', short: 'Enemies nearby take more damage', cost: 280, desc: 'Towers within 6 tiles fire 30% faster, and enemies inside the radius take 15% more damage from every source, soldiers included.', st: s => ({}) } },
-};
 // each specialisation has 3 ranks: every rank adds 30% damage, 0.4 range and fires 8% faster, plus one extra per branch
 const specStat = (type, k, rank = 1) => {
   if (type === 'barracks') return barrAsStat(barrStat(k, rank));
   if (type === 'drum') return drumAsStat(drumStat(k, rank));
-  const s = tStat(type, 3, false); Object.assign(s, SPEC[type][k].st(s));
-  const r = rank - 1; s.dmg *= Math.pow(1.3, r); s.range += .4 * r; s.rate *= Math.pow(.92, r); s.dps *= Math.pow(1.3 / .92, r);
-  return skApply(type, s, k);
+  return eSpecStat(uiSkills(), type, k, rank);
 };
-const rankCost = (type, k, rank) => Math.round(SPEC[type][k].cost * (rank === 2 ? .8 : 1.1) / 10) * 10; // cost to reach rank 2 or 3
 const RANKX = {
   arrow: { a: r => '', b: r => `${2 + r} archers, each at a different enemy.` },
   cannon: { a: r => `Splash radius ${(2.8 + .2 * r).toFixed(1)}. Ignores ${Math.round(mortarPierce(r) * 100)}% of armor.`, b: r => '' },
@@ -2074,8 +2072,6 @@ const towerName = t => t.spec ? `${SPEC[t.type][t.spec].name} (${TT[t.type].name
 const iceMat = new THREE.MeshBasicMaterial({ color: 0xd8f4ff, transparent: true, opacity: .5, depthWrite: false, side: THREE.DoubleSide });
 const iceGeo = new THREE.CircleGeometry(1.1, 20).rotateX(-Math.PI / 2);
 const chargeMat = ME(0xff3020, 1.5);
-const UPC = { arrow: [70, 110], cannon: [120, 170], frost: [95, 135], tesla: [150, 210], flame: [125, 175], barracks: [110, 160], drum: [120, 170] };
-const upCost = t => UPC[t.type][t.lvl - 1];
 const SHORT = { arrow: 'Archer', cannon: 'Cannon', frost: 'Frost', tesla: 'Tesla', flame: 'Flame', barracks: 'Barracks', drum: 'War Drum' };
 const NOTE = {
   arrow: l => l >= 3 ? 'Fires a second arrow at another target. Hits ground and air.' : 'Fast, cheap, hits ground and air. Lv 3 fires two arrows.',
@@ -2094,25 +2090,17 @@ let towers = [];
 let spots = PLOTS.map(p => ({ ...p, used: false, block: 0, cov: {} }));
 // ---- skill tree effects. SKILL_ACTIVE is set for battles you play; SKILL_VIEW while the almanac draws
 let SKILL_ACTIVE = null, SKILL_VIEW = null;
-const SKX = () => SKILL_VIEW || SKILL_ACTIVE;
-const skH = id => { const x = SKX(); return !!(x && x.has.has(id)); };
-function skCompute(s) { const has = new Set(), tr = (s && s.tree) || {}; for (const k in tr) for (const id in tr[k]) if (tr[k][id]) has.add(k + '.' + id); return { has }; }
-// [tower, stat, amount, only for this specialisation]
-const SK_STAT = { 'arrow.root': ['arrow', 'dmg', .05], 'arrow.tips': ['arrow', 'dmg', .08], 'arrow.draw': ['arrow', 'rate', .1], 'arrow.eye': ['arrow', 'rng', .08], 'arrow.guild': ['arrow', 'rate', .1],
-  'cannon.root': ['cannon', 'dmg', .05], 'cannon.heavy': ['cannon', 'dmg', .08], 'cannon.reload': ['cannon', 'rate', .1], 'cannon.grape': ['cannon', 'dmg', .15, 'b'],
-  'frost.hoar': ['frost', 'dmg', .1], 'frost.lens': ['frost', 'rng', .1],
-  'tesla.root': ['tesla', 'dmg', .05], 'tesla.ground': ['tesla', 'rng', .08], 'tesla.cap': ['tesla', 'rate', .1],
-  'flame.root': ['flame', 'dmg', .05], 'flame.bellows': ['flame', 'rng', .1], 'flame.valve': ['flame', 'rate', .1] };
-function skMod(type, stat, spec) { const x = SKX(); if (!x) return 0; let v = 0; for (const id in SK_STAT) { const [t, st, val, sp] = SK_STAT[id]; if (t === type && st === stat && (!sp || sp === spec) && x.has.has(id)) v += val; } return v; }
-function skApply(type, s, spec) { const d = skMod(type, 'dmg', spec), r = skMod(type, 'rng', spec), q = skMod(type, 'rate', spec); if (d || r || q) { s.dmg *= 1 + d; s.range *= 1 + r; s.rate /= 1 + q; s.dps *= (1 + d) * (1 + q); } return s; }
-const sellRate = () => skH('kingdom.treasury') ? .9 : skH('kingdom.qm') ? .8 : .7;
-const mortarDead = () => skH('cannon.mortar') ? 2 : MORTAR_DEAD;
-const tStat = (type, lvl, sk = true) => {
+const NO_SKILLS = { skills: new Set() };
+const uiSkills = () => SKILL_VIEW || SKILL_ACTIVE || NO_SKILLS;
+const skH = id => hasSkill(uiSkills(), id);
+function skCompute(s) { const skills = new Set(), tr = (s && s.tree) || {}; for (const k in tr) for (const id in tr[k]) if (tr[k][id]) skills.add(k + '.' + id); return { skills }; }
+const skMod = (type, stat, spec) => eSkMod(uiSkills(), type, stat, spec);
+const sellRate = () => eSellRate(uiSkills());
+const mortarDead = () => eMortarDead(uiSkills());
+const tStat = (type, lvl) => {
   if (type === 'barracks') return barrAsStat(barrStat(Math.min(lvl, 3)));
   if (type === 'drum') return drumAsStat(drumStat(Math.min(lvl, 3)));
-  const d = TT[type];
-  const s = { dmg: d.dmg * Math.pow(1.7, lvl - 1), range: d.range + .7 * (lvl - 1), rate: d.rate * Math.pow(.86, lvl - 1), dps: d.dps * Math.pow(1.7, lvl - 1) / Math.pow(.86, lvl - 1) };
-  return sk ? skApply(type, s, null) : s;
+  return eTStat(uiSkills(), type, lvl);
 };
 // ---------------------------------------------------------------- detailed Archer Tower model
 // Non-box parts use their own (non-"plain") materials so mergeStatic leaves them alone.
@@ -2746,10 +2734,6 @@ function barracksModel(t, g) {
 }
 
 // ================================================================ Barracks: soldiers, blocking and melee (Phase 3)
-// enemy attacks against soldiers: [damage per hit, seconds between hits, range in tiles, damage type]
-const ATK = { runner: [3, 1.0, .6, 'phys'], soldier: [6, 1.2, 1.0, 'phys'], knight: [10, 1.25, .6, 'phys'], shaman: [5, 2.5, 3.0, 'magic'], brute: [14, 2.0, .8, 'phys'], golem: [18, 2.0, .8, 'phys'],
-  sapper: [3, 1.0, .6, 'phys'], rider: [6, 1.0, .6, 'phys'], gruk: [30, 2.0, 1.0, 'phys'], boss: [35, 2.0, 1.0, 'phys'] };
-const ATKX = { soldier: 'long reach', shaman: 'keeps healing allies', brute: 'cleaves 2 soldiers', sapper: 'plants its charge on a Barracks', rider: 'first block: charges through for 12', gruk: 'splash 1 tile', boss: 'splash 1 tile' };
 const atkText = k => { const A = ATK[k]; if (!A) return 'None: flies over soldiers'; return `${A[0]} per hit, every ${A[1]} s, ${A[2] > 1.5 ? 'ranged ' + A[2] + ' tiles' : 'melee'}${A[3] === 'magic' ? ', magic' : ''}${ATKX[k] ? '; ' + ATKX[k] : ''}`; };
 let soldiers = [], fallenSol = [], swooshes = [];
 const swGeo = new THREE.RingGeometry(.32, .56, 18, 1, -1.1, 2.2);
@@ -2760,16 +2744,13 @@ function swoosh(so, col) { // a white arc in front of a soldier as its blade com
 function updateSoldierFx(dt) {
   swooshes = swooshes.filter(w => { w.t += dt; w.m.material.opacity = .85 * (1 - w.t / .22); w.m.scale.setScalar(1 + w.t * 1.5); if (w.t < .22) return true; scene.remove(w.m); w.m.material.dispose(); return false; });
   fallenSol = fallenSol.filter(f => { f.t += dt; const g = f.s.g;
-    g.rotation.x = -Math.min(1, f.t / .35) * Math.PI / 2 * .95; g.rotation.z = f.side * Math.min(1, f.t / .35) * .2;
+    if (Object.hasOwn(HEROES, f.s.type)) poseHero(f.s, f.s.type, 'fall', f.t);
+    else { g.rotation.x = -Math.min(1, f.t / .35) * Math.PI / 2 * .95; g.rotation.z = f.side * Math.min(1, f.t / .35) * .2; }
     if (f.t > .35 && !f.dust) { f.dust = true; fxDust(g.position, 4, .25); }
     if (f.t > 1) g.position.y -= dt * 1.2;
     if (f.t < 1.7) return true; scene.remove(g); return false; });
 }
-const SOL_REGEN = .02; // every soldier heals 2% health per second after 2 s out of combat (Paladins: their own faster rate)
-const SOL_FIRST = ['Aldric', 'Bram', 'Cedric', 'Doran', 'Edric', 'Finn', 'Garrick', 'Hal', 'Ivo', 'Jory', 'Kael', 'Leof', 'Merek', 'Nils', 'Osric', 'Perrin', 'Rowan', 'Sten', 'Tobin', 'Ulric', 'Wat', 'Wystan', 'Yorick', 'Gunnar', 'Halvard', 'Bertram', 'Godwin', 'Oswin', 'Roderick', 'Tam', 'Willem', 'Anselm', 'Brynn', 'Corwin', 'Dunstan', 'Elric', 'Fenwick', 'Gareth', 'Hugo', 'Lambert'];
-const SOL_LAST = ['Ironfoot', 'Oakshield', 'Stonebrow', 'Ashdown', 'Blackwood', 'Brightwater', 'Copperbeard', 'Fairweather', 'Greaves', 'Hammerfall', 'Hollins', 'Longstride', 'Marsh', 'Redmane', 'Strongbow', 'Thatcher', 'Underhill', 'Whitlock', 'Woodward', 'Barley', 'Cobb', 'Dale', 'Fletcher', 'Mason'];
 const soldierName = () => { for (let k = 0; k < 8; k++) { const n = pick(SOL_FIRST) + ' ' + pick(SOL_LAST); if (!soldiers.some(s => s.alive && s.name === n)) return n; } return pick(SOL_FIRST) + ' ' + pick(SOL_LAST); };
-const SOL_INFO = { militia: ['Militiaman', 'A farmhand with a pitchfork and a borrowed shield, called up for a few seconds of courage.'], footman: ['Footman', 'A town recruit with a kettle hat, short sword and round shield.'], shieldman: ['Shieldbearer', 'A mail-clad soldier with a kite shield, trained to hold the line.'], guard: ['Knight', 'A plumed knight in plate, with a broadsword and the castle on his shield.'], paladin: ['Paladin', 'A holy warrior who heals between fights; every fourth blow is a holy strike.'], ranger: ['Ranger', 'A hooded archer who shoots ground and air, and still blocks when cornered.'] };
 const solBarMat = new THREE.MeshBasicMaterial({ color: 0x5aa8ff, transparent: true, depthWrite: false });
 function defaultRally(t) { let best = null, bd = 1e9; for (const s of SAMPLES) { const d = (s.x - t.x) ** 2 + (s.z - t.z) ** 2; if (d < bd) { bd = d; best = s; } } return best ? { x: best.x, z: best.z } : { x: t.x, z: t.z }; }
 class Soldier {
@@ -2797,19 +2778,50 @@ class Soldier {
     const host = eView.get(src.host) || { militia: true, x: src.host.x, z: src.host.z, bs: src.st, rally: src.host.rally, resp: [] };
     const so = new Soldier(host, src.i, true); so.src = src; so.name = src.name; so.g.position.set(src.x, src.y, src.z); return so;
   }
-  view(dt) {
+  view(dt, alpha) {
     const s = this.src, pos = this.g.position, a = s.atk;
-    if (s.hp < this.hp - .05) this.flash = .09;
-    if (a && a.hit && !(this.atk && this.atk.hit)) { const e = eView.get(a.e); if (e) { e.flinch = 1; if (e.def.armor > 0) fxSparks(e.center, 0xffffff, 7, 3); else fxSparks(e.center, 0xfff0c0, 4, 2.2); if (a.bash) fxDust(e.g.position, 3, .2); else swoosh(this, this.st.holy ? 0xfff0a0 : 0xffffff); } }
+    if (s.hp < this.hp - .05) { this.flash = .09; this.hurtAt = G.time; }
+    if (!Object.hasOwn(HEROES, this.type) && a && a.hit && !(this.atk && this.atk.hit)) { const e = eView.get(a.e); if (e) { e.flinch = 1; if (e.def.armor > 0) fxSparks(e.center, 0xffffff, 7, 3); else fxSparks(e.center, 0xfff0c0, 4, 2.2); if (a.bash) fxDust(e.g.position, 3, .2); else swoosh(this, this.st.holy ? 0xfff0a0 : 0xffffff); } }
     if (this.st.ranged && s.cd > this.cd + .1) this.rel = 1;
     for (const k of SVIEW) this[k] = s[k];
-    const moving = (s.x - pos.x) ** 2 + (s.z - pos.z) ** 2 > 1e-6;
-    pos.set(s.x, s.y, s.z); this.heading = this.g.rotation.y = s.heading;
+    const p = this.previousHeroPosition;
+    const x = p ? lerp(p.x, s.x, alpha) : s.x, z = p ? lerp(p.z, s.z, alpha) : s.z;
+    const moving = (x - pos.x) ** 2 + (z - pos.z) ** 2 > 1e-6;
+    pos.set(x, p ? lerp(p.y, s.y, alpha) : s.y, z);
+    this.heading = this.g.rotation.y = p ? lerpAngle(this.previousHeroHeading, s.heading, alpha) : s.heading;
     this.target = s.target ? eView.get(s.target) || null : null;
     this.animate(dt, moving, this.target);
   }
   animate(dt, moving, e) {
-    const st = this.st, pos = this.g.position;
+    const pos = this.g.position;
+    if (Object.hasOwn(HEROES, this.type)) this.animateHero(dt, moving);
+    else this.animateSoldier(dt, moving, e);
+    if (this.flash > 0) this.flash -= dt;
+    const fl = this.flash > 0;
+    if (fl !== this.flashing) { this.flashing = fl; for (const m of this.meshes) m.material = fl ? flashMat : m.userData.m; }
+    this.center.set(pos.x, pos.y + this.cy, pos.z);
+    this.bar.position.set(pos.x, pos.y + this.hb, pos.z); this.bar.quaternion.copy(camera.quaternion);
+    this.fg.scale.x = .6 * Math.max(0, this.hp / this.maxHp); this.bar.visible = this.hp < this.maxHp;
+  }
+  animateHero(dt, moving) {
+    const hero = this.type, cast = this.heroCast, time = G.time;
+    const pose = (clip, t, strideWeight) => poseHero(this, hero, clip, t, strideWeight);
+    if (hero === 'aldric' && G.hero?.shieldUntil > time) {
+      pose('shield-wall', cast?.clip === 'shield-wall' ? time - cast.at : .18);
+      return;
+    }
+    if (cast && cast.clip !== 'shield-wall' && time - cast.at < cast.duration) { pose(cast.clip, time - cast.at); return; }
+    if (this.atk) { pose(hero === 'aldric' ? 'slash' : 'ember-bolt', this.atk.t); return; }
+    if (time - this.hurtAt < .24) { pose('hurt', time - this.hurtAt); return; }
+    const blend = this.marchBlend ?? 0;
+    this.marchBlend = clamp(blend + (moving ? 1 : -1) * dt * 8, 0, 1);
+    if (this.marchBlend > 0) {
+      this.anim += dt;
+      pose('walk', this.anim, this.marchBlend);
+    } else pose('idle', game.time);
+  }
+  animateSoldier(dt, moving, e) {
+    const st = this.st;
     if (moving) this.anim += dt * 10;
     const s = moving ? Math.sin(this.anim) : 0, a = this.atk, p = a ? a.t / .36 : 0;
     let armW = -s * .4, armS = s * .4, lunge = 0, side = 0, hop = 0;
@@ -2822,36 +2834,10 @@ class Soldier {
     if (this.legs.length > 1) { this.legs[0].rotation.x = s * .6 + (a ? -lunge * 2 : 0); this.legs[1].rotation.x = -s * .6 + (a ? lunge * 1.2 : 0); }
     if (this.arms.length > 1) { this.arms[0].rotation.x = armW; this.arms[1].rotation.x = armS; }
     this.b.position.set(side / ES, hop / ES, lunge / ES); this.b.rotation.x = lunge * .9;
-    if (this.flash > 0) this.flash -= dt;
-    const fl = this.flash > 0;
-    if (fl !== this.flashing) { this.flashing = fl; for (const m of this.meshes) m.material = fl ? flashMat : m.userData.m; }
-    this.center.set(pos.x, pos.y + this.cy, pos.z);
-    this.bar.position.set(pos.x, pos.y + this.hb, pos.z); this.bar.quaternion.copy(camera.quaternion);
-    this.fg.scale.x = .6 * Math.max(0, this.hp / this.maxHp); this.bar.visible = this.hp < this.maxHp;
   }
 }
 // barracks stats by level ('a' Paladins, 'b' Rangers) and rank
-const BARR = {
-  1: { n: 3, unit: 'footman', hp: 75, dmg: 6, rate: 1, armor: 0, mr: 0, resp: 8, rad: 3.0 },
-  2: { n: 3, unit: 'shieldman', hp: 125, dmg: 9, rate: 1, armor: .15, mr: 0, resp: 8, rad: 3.3 },
-  3: { n: 3, unit: 'guard', hp: 200, dmg: 14, rate: 1, armor: .25, mr: 0, resp: 7, rad: 3.6 },
-  a: { n: 3, unit: 'paladin', hp: 275, dmg: 18, rate: 1, armor: .35, mr: .3, resp: 6, rad: 3.6, heal: .05, holy: 40 },
-  b: { n: 3, unit: 'ranger', hp: 140, dmg: 14, rate: .9, armor: .1, mr: 0, resp: 7, rad: 4, ranged: 4 },
-};
-function barrStat(k, rank = 1) { const b = Object.assign({}, BARR[k]), r = rank - 1; b.hp = Math.round(b.hp * Math.pow(1.2, r)); b.dmg = +(b.dmg * Math.pow(1.25, r)).toFixed(1); b.rad = +(b.rad + .2 * r).toFixed(1); if (b.holy) b.holy = Math.round(b.holy * Math.pow(1.25, r)); if (k === 'b') b.rate = [.9, .8, .7][r] ?? .7;
-  if (SKX()) {
-    if (skH('barracks.root')) b.hp = Math.round(b.hp * 1.1);
-    if (skH('barracks.pala') && k === 'a') { b.hp = Math.round(b.hp * 1.1); b.mr = +(b.mr + .1).toFixed(2); }
-    if (skH('barracks.gamb')) b.armor = +(b.armor + .1).toFixed(2);
-    if (skH('barracks.drill')) b.dmg = +(b.dmg * 1.1).toFixed(1);
-    if (skH('barracks.medic') && !b.heal) b.regen = .03;
-    if (skH('barracks.horn')) b.resp = +(b.resp * .8).toFixed(1);
-    if (skH('barracks.fourth')) b.n += 1;
-    if (skH('barracks.rang') && b.ranged) b.ranged += .5;
-    if (skH('barracks.right') && b.holy) b.holyN = 3;
-  }
-  return b; }
-const barrAsStat = b => ({ dmg: b.dmg, range: b.rad, rate: b.rate, dps: b.n * b.dmg / b.rate, hp: b.hp });
+const barrStat = (k, rank = 1) => eBarrStat(uiSkills(), k, rank);
 // rally point marker shown while a barracks is selected
 const rallyFlag = new THREE.Group(); rallyFlag.visible = false; scene.add(rallyFlag);
 const rallyGhost = new THREE.Group(); rallyGhost.visible = false; scene.add(rallyGhost);
@@ -3031,22 +3017,7 @@ function drumModel(t, g) {
 }
 
 // ================================================================ War Drum: a support tower that speeds up the towers around it (Phase 3)
-// haste = fire rate boost, rngB = range boost for boosted towers (War Horn), hex = extra damage enemies take in its radius (Hex Totem)
-const DRUM = {
-  1: { haste: .15, rad: 5.0 },
-  2: { haste: .20, rad: 5.5 },
-  3: { haste: .30, rad: 6.0 },
-  a: { haste: .30, rad: 6.0, rngB: .20 },
-  b: { haste: .30, rad: 6.0, hex: .15 },
-};
-function drumStat(k, rank = 1) {
-  const d = Object.assign({}, DRUM[k]), r = rank - 1;
-  d.haste = +(d.haste + .05 * r).toFixed(2); d.rad = +(d.rad + .3 * r).toFixed(1);
-  if (d.rngB) d.rngB = +(d.rngB + .05 * r).toFixed(2); if (d.hex) d.hex = +(d.hex + .05 * r).toFixed(2);
-  if (SKX()) { if (skH('drum.root')) d.haste = +(d.haste + .02).toFixed(2); if (skH('drum.beat')) d.haste = +(d.haste + .03).toFixed(2); if (skH('drum.hide')) d.rad = +(d.rad + .5).toFixed(1); if (k === 'a' && skH('drum.hornm')) d.rngB = +(d.rngB + .1).toFixed(2); if (k === 'b' && skH('drum.totem')) d.hex = +(d.hex + .07).toFixed(2); }
-  return d;
-}
-const drumAsStat = d => ({ dmg: 0, range: d.rad, rate: 1, dps: 0, haste: d.haste, rngB: d.rngB || 0, hex: d.hex || 0 });
+const drumStat = (k, rank = 1) => eDrumStat(uiSkills(), k, rank);
 const dpct = v => Math.round(v * 100) + '%';
 const drumRingGeo = new THREE.RingGeometry(.94, 1, 56).rotateX(-Math.PI / 2);
 let drumRings = [];
@@ -3208,9 +3179,6 @@ const hud = { w: document.getElementById('hw'), g: document.getElementById('hg')
 let msgT = 0;
 function msg(s) { hud.m.textContent = s; msgT = 5; }
 const waveCounts = n => { const o = {}; for (const [k, [st, b, g]] of Object.entries(MAP.units)) o[k] = n >= st ? Math.round(b + g * (n - st + 1)) : 0; o.boss = MAP.bosses[n] || 0; return o; };
-// balance constants the engine reads through src/content (npm run extract): wave grouping, and the Watch AI's tower mix
-const GROUPING = { runner: [3, 5, .35], soldier: [2, 3, .7], knight: [1, 2, .9], shaman: [1, 1, 1], brute: [1, 1, 1], golem: [1, 1, 1.2], flyer: [2, 4, .45], wraith: [2, 3, .5], rider: [2, 3, .6], gruk: [1, 1, 1], sapper: [1, 2, .9] };
-const WANT = { arrow: .22, cannon: .2, frost: .14, tesla: .22, flame: .22, barracks: .1, drum: .05 };
 function waveMsg(n, bosses) {
   const fresh1 = Object.entries(MAP.units).find(([, u]) => u[0] === n && n > 1);
   msg(n === MAP.waves ? `Final wave!${bosses ? ` ${bosses} Warlord${bosses > 1 ? 's' : ''} march` : ''}` : bosses ? `Wave ${n}: a Warlord approaches!` : fresh1 ? `Wave ${n}: new enemy, ${ED[fresh1[0]].title}` : `Wave ${n} incoming`);
@@ -3535,8 +3503,8 @@ function resetGame(mode, idx) {
 let G = null, eAcc = 0;
 const eIn = [], eView = new Map(); // inputs for the next step; engine record → view
 function engineStart() {
-  const ids = SKILL_ACTIVE ? [...SKILL_ACTIVE.has] : [], seed = (Math.random() * 2 ** 32) >>> 0;
-  G = game.mode === 'play' ? eMakeGame({ map: mapIdx, mode: 'play', seed, diff: playDiff, dmgMul: playDmg, skills: ids, gate: UNLOCKS.indexOf(game.gate), spells: game.spells })
+  const ids = SKILL_ACTIVE?.skills, seed = (Math.random() * 2 ** 32) >>> 0;
+  G = game.mode === 'play' ? eMakeGame({ map: mapIdx, mode: 'play', seed, diff: playDiff, dmgMul: playDmg, skills: ids, gate: UNLOCKS.indexOf(game.gate), spells: game.spells, hero: heroChoice })
     : makeWatchGame({ map: mapIdx, seed }); // Watch mode: the engine builds the opening and plays 3 s of it
   game.diff = G.diff;
   eAcc = 0; eIn.length = 0; eView.clear();
@@ -3544,6 +3512,9 @@ function engineStart() {
   for (const r of G.towers) { const t = Tower.of(r); eView.set(r, t); towers.push(t); } // already standing (Watch mode's opening)
   for (const r of G.enemies) { const e = Enemy.of(r); eView.set(r, e); enemies.push(e); }
   for (const t of towers) t.view(0);
+  if (G.hero) eView.set(G.hero.unit, Soldier.of(G.hero.unit));
+  heroEmoteUntil = 0;
+  heroLooks(0);
   engineSync();
 }
 function engineSync() {
@@ -3553,7 +3524,15 @@ function engineSync() {
 }
 function engineStep(dt) {
   eAcc += dt;
-  while (eAcc >= EDT - 1e-9) { eAcc -= EDT; for (const ev of eTick(G, eIn.splice(0))) engineEvent(ev); }
+  while (eAcc >= EDT - 1e-9) {
+    eAcc -= EDT;
+    const hero = G.hero?.unit, view = hero && eView.get(hero);
+    if (view) {
+      (view.previousHeroPosition ??= new V3()).set(hero.x, hero.y, hero.z);
+      view.previousHeroHeading = hero.heading;
+    }
+    for (const ev of eTick(G, eIn.splice(0))) engineEvent(ev);
+  }
   engineSync();
   for (const e of enemies) e.view(dt);
   for (const t of towers) t.view(dt);
@@ -3561,9 +3540,11 @@ function engineStep(dt) {
   for (const so of soldiers) if (so.alive && !live.has(so.src)) { fxDust(so.g.position, 5, .3); so.remove(); eView.delete(so.src); } // Militia going home
   soldiers = soldiers.filter(so => so.alive);
   for (const r of G.soldiers) if (!eView.has(r)) eView.set(r, Soldier.of(r));
-  for (const so of soldiers) so.view(dt);
+  const alpha = clamp(eAcc / EDT, 0, 1);
+  for (const so of soldiers) so.view(dt, alpha);
   updateSoldierFx(dt);
   engineLooks(dt);
+  heroLooks(dt);
   projLooks(dt);
 }
 // projectiles and ground patches drawn from the engine's records; each keeps a mesh while its record lives
@@ -3609,7 +3590,11 @@ function engineEvent(ev) {
   const v = ev.e && eView.get(ev.e);
   switch (ev.t) {
     case 'spawn': { const e = Enemy.of(ev.e); eView.set(ev.e, e); enemies.push(e); spawnFx(e, ev.e.d, PATHS[ev.e.path]); break; }
-    case 'kill': if (v) { v.remove(); deathFx(v); rewardFx(v, ev.reward); enemies = enemies.filter(o => o !== v); eView.delete(ev.e); } break;
+    case 'kill': if (v) {
+      v.remove(); deathFx(v); rewardFx(v, ev.reward);
+      if (ev.embers) fxSparks(v.center, 0xff842e, ev.embers * 4, 3);
+      enemies = enemies.filter(o => o !== v); eView.delete(ev.e);
+    } break;
     case 'gate': if (v) { v.remove(); enemies = enemies.filter(o => o !== v); eView.delete(ev.e); game.hp = G.hp; gateFx(v); if (G.hp > 0 && v.type === 'boss') msg('The Warlord smashed the gate!'); } break;
     case 'castleFalls': castleFalls(); break;
     case 'victory': victory(); break;
@@ -3622,7 +3607,37 @@ function engineEvent(ev) {
     case 'shield': if (v) fxSparks(v.center, 0x9ad8ff, 8, 3); break;
     case 'shatter': if (v) fxIce(v.center); break;
     case 'staticCharge': if (v) { const c = v.center.clone(); for (let k = 0; k < 4; k++) bolt(c, c.clone().add(new V3(rand(-1.8, 1.8), rand(-.4, .8), rand(-1.8, 1.8))), 0x9a7bff); } break;
-    case 'heal': if (v) healFx(v); break;
+    case 'heal':
+      if (v) healFx(v);
+      for (const o of ev.healed) for (let k = 0; k < 5; k++) glow.spawn(o.x + rand(-.3, .3), o.y + o.cy + rand(-.2, .4), o.z + rand(-.3, .3), 0, rand(.8, 1.6), 0, .7, .09, 0x6aff8a, 0, F_SPIN, 1, 0x0a4a1a);
+      break;
+    case 'heroCast': heroCastFx(ev); break;
+    case 'heroMoveBlocked': msg('No walkable route there'); break;
+    case 'heroPush': fxDust(new V3(ev.e.x, ev.e.y, ev.e.z), 5, .3); break;
+    case 'heroHit': {
+      const c = new V3(ev.e.x, ev.e.y + ev.e.cy, ev.e.z);
+      if (v) v.flinch = 1;
+      if (ev.s.type === 'corwin') {
+        bolt(new V3(ev.s.x, ev.s.y + .8, ev.s.z), c, 0xff9b4a);
+        fxSparks(c, 0xffb45b, 6, 2.2);
+      } else {
+        const so = eView.get(ev.s);
+        if (so) swoosh(so, 0xffdf98);
+        fxSparks(c, 0xffdf98, 5, 2.2);
+      }
+      break;
+    }
+    case 'drumThunder': {
+      const t = eView.get(ev.tower);
+      if (t) { drumPulse(t); flashLight(new V3(t.x, 2, t.z), 40, 0xffd060); }
+      break;
+    }
+    case 'drumCharge': {
+      const t = eView.get(ev.tower);
+      if (t) drumPulse(t);
+      for (const e of ev.pushed) fxDust(new V3(e.x, e.y, e.z), 3, .2);
+      break;
+    }
     case 'build': { const t = Tower.of(ev.tower); eView.set(ev.tower, t); towers.push(t); msg(`Built ${TT[t.type].name}`); break; }
     case 'upgrade': case 'specialise': { const t = eView.get(ev.tower), s = ev.tower; if (!t) break;
       if (ev.t === 'specialise') { t.setSpec(s.spec); t.mode = s.mode; msg(`${TT[t.type].name} became a ${SPEC[t.type][s.spec].name}`); }
@@ -3683,9 +3698,6 @@ const deadG = new THREE.Group(); deadG.visible = false; scene.add(deadG);
 { const ring = new THREE.Mesh(new THREE.RingGeometry(.955, 1, 64), new THREE.MeshBasicMaterial({ color: 0xff3a2a, transparent: true, opacity: .9, depthWrite: false, side: THREE.DoubleSide }));
   const disc = new THREE.Mesh(new THREE.CircleGeometry(1, 64), new THREE.MeshBasicMaterial({ color: 0xff2a1a, transparent: true, opacity: .22, depthWrite: false, side: THREE.DoubleSide }));
   ring.rotation.x = disc.rotation.x = -Math.PI / 2; ring.renderOrder = disc.renderOrder = 2; deadG.add(disc, ring); }
-const MORTAR_DEAD = 3;
-const overloadCap = r => 2 + r; // Overload beam build-up limit by rank: 3x / 4x / 5x, reached in 3 seconds
-const mortarPierce = r => .3 + .1 * r; // share of armor the Siege Mortar ignores: 40% / 50% / 60% by rank
 function showRange(x, z, r, dead = 0) { rangeG.visible = true; rangeG.position.set(x, 1.04, z); rangeG.scale.set(r, 1, r);
   deadG.visible = dead > 0; if (dead) { deadG.position.set(x, 1.05, z); deadG.scale.set(dead, 1, dead); } }
 function rebuildSpots() {
@@ -3807,16 +3819,8 @@ addEventListener('keyup', e => keys.delete(e.code));
 addEventListener('blur', () => keys.clear());
 
 // ================================================================ spells: Militia Call and Catapult Barrage (from 1-2), Frost Nova (from 3-1)
-const SPELLS = {
-  militia: { name: 'Militia Call', cd: 20, r: 1.2, col: 0x4ad05a, desc: 'Two militiamen rise on the road and block for 12 s.', icon: '<path d="M6 21V9M3 9h6M3 5v4M6 5v4M9 5v4"/><path d="M14 21v-6l3-3 3 3v6"/><circle cx="17" cy="8" r="2.5"/>' },
-  catapult: { name: 'Catapult Barrage', cd: 45, r: 2, col: 0xe04a3a, desc: 'After 3 s, five boulders land in a 2-tile circle: 60 damage each and a short stun.', icon: '<circle cx="17" cy="16" r="4"/><path d="M3 20c2-9 7-13 13-13"/><path d="M13 4l3 3-3 3"/>' },
-  nova: { name: 'Frost Nova', cd: 60, r: 2.5, col: 0x7ad8ff, desc: 'Freezes ground enemies within 2.5 tiles for 2.5 s. Bosses are slowed instead.', icon: '<path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7M9 4l3 2 3-2M9 20l3-2 3 2"/><circle cx="12" cy="12" r="3"/>' },
-};
-const SPELL_KEYS = ['militia', 'catapult', 'nova'];
 // painted spell art (src/art/spells/<key>.webp)
 const SPELL_ART = Object.fromEntries(Object.entries(import.meta.glob('./art/spells/*.webp', { eager: true, import: 'default' })).map(([p, url]) => [p.split('/').pop().slice(0, -5), url]));
-const spellsFor = (i, dev) => SPELL_KEYS.filter(k => dev || (k === 'nova' ? i >= 7 : i >= 1));
-const MILITIA = { n: 2, unit: 'militia', hp: 50, dmg: 4, rate: 1, armor: 0, mr: 0, resp: 99, rad: 2.5 };
 const rockMat = M(0x8a8478);
 var spellFx = [];
 var spellRing = new THREE.Mesh(new THREE.RingGeometry(.92, 1, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .8, depthWrite: false }));
@@ -3895,6 +3899,7 @@ cvs.addEventListener('pointermove', e => { if (ui.rally && e.pointerType === 'mo
 function handleTap(x, y, type) {
   if (game.mode !== 'play' || game.state !== 'play') return;
   ui.ptrType = type;
+  if (ui.heroAim) { finishHeroAim(x, y); return; }
   if (ui.spell) { const k = ui.spell, q = spellSpot(k, x, y); ui.spell = null; spellRing.visible = false; if (q) castSpell(k, q); else { msg(k === 'militia' ? 'Militia need a spot on or near the road' : 'Tap the map to aim'); renderSpells(); } return; }
   if (ui.rally) {
     const t = ui.rally, { best } = rallyPick(t, x, y);
@@ -4116,6 +4121,7 @@ tringEl.querySelectorAll('button[data-k]').forEach(b => {
 });
 
 function closeMenus() {
+  if (ui.heroAim) { ui.heroAim = null; spellRing.visible = false; }
   if (ui.spell) { ui.spell = null; if (spellRing) spellRing.visible = false; renderSpells(); }
   rallyFlag.visible = false; rallyGhost.visible = false; ui.rally = null;
   if (ui.ghost) { ui.ghost.remove(); ui.ghost = null; }
@@ -4212,6 +4218,7 @@ function showEnd() {
   $('bretry').classList.toggle('primary', !won);
   const st = [['Waves reached', `${game.wave} / ${MAP.waves}`], ['Enemies defeated', game.defeated], ['Towers built', game.built], ['Gold earned', game.earned]];
   $('estats').innerHTML = st.map(([a, b]) => `<span>${a}</span><b>${b}</b>`).join('');
+  renderHeroPicker('retryHeroes');
   $('end').hidden = false; $('ctrl').hidden = true;
 }
 function recordWin(key, dI, stars) {
@@ -4223,39 +4230,9 @@ function recordWin(key, dI, stars) {
 }
 function hideEnd() { ui.endShown = false; $('end').hidden = true; }
 // ================================================================ campaign: world map, briefing, unlocks (Phase 4)
-const AREAS = [
-  { name: 'Greenvale', land: 'River lowlands, farms and a bog', col: '#8cc06a', ink: '#3f6a2a' },
-  { name: 'Highcrag', land: 'Mountain passes and old copper mines', col: '#b3ab9c', ink: '#5a5248' },
-  { name: 'Frostmere Reach', land: 'Snowfields and a frozen lake', col: '#e4eef6', ink: '#5a7a9a' },
-  { name: 'Cinderwaste', land: 'Ash plains, lava rivers, the King’s tomb', col: '#6a4a40', ink: '#2a1a14' },
-];
-// map: key of a built map in MAPS, or null while the level is still planned
-const LEVELS = [
-  { id: '1-1', area: 0, name: 'Millbrook Fields', map: 'mill', x: 420, y: 805, story: 'Goblin raiders are trampling the farms below the Keep, where the last beacon fire in the March still burns. Learn to build and drive them off.', tut: true },
-  { id: '1-2', area: 0, name: 'River Crossing', map: 'river', x: 322, y: 655, story: 'The raiders reach the river, and cave bats fly straight over the water. Hold the bridge.' },
-  { id: '1-3', area: 0, name: 'Thornwood', map: 'thorn', x: 150, y: 600, story: 'The road leaves the river and plunges into the Thornwood, where goblin sappers lay their traps.' },
-  { id: '1-4', area: 0, name: 'Mire’s Edge', map: 'mire', x: 262, y: 528, story: 'Gruk the Mire-King wades out of the bog with his boar riders. End his raids for good.' },
-  { id: '2-1', area: 1, name: 'Highland Pass', map: 'pass', x: 205, y: 395, story: 'Knights who sold their oaths march with the horde up the switchbacks.' },
-  { id: '2-2', area: 1, name: 'Copperdeep Mines', map: null, x: 410, y: 300, story: 'Cave trolls burrow through the old mines. Watch the tunnel mouths.' },
-  { id: '2-3', area: 1, name: 'Eagle’s Rest', map: null, x: 600, y: 165, story: 'The Stone Warlord storms the cliff-top fortress.' },
-  { id: '3-1', area: 2, name: 'Frostmere', map: 'frost', x: 905, y: 215, story: 'Wraiths drift across the frozen lake, and arrows pass straight through them.' },
-  { id: '3-2', area: 2, name: 'Whitepine Hollow', map: null, x: 1200, y: 150, story: 'A blizzard hides the Rime Matriarch’s march through the pines.' },
-  { id: '4-1', area: 3, name: 'Ember Crater', map: 'crater', x: 1290, y: 470, story: 'Every clan of the horde gathers in the ash fields.' },
-  { id: '4-2', area: 3, name: 'Obsidian Road', map: null, x: 1060, y: 640, story: 'Lava surges across the road as the salamanders come.' },
-  { id: '4-3', area: 3, name: 'The Ashen Throne', map: null, x: 1400, y: 775, story: 'The Ashen King wakes to snuff out the last light. End the march at his tomb.' },
-];
-// what the player has unlocked, by furthest level reached (Kingdom Rush style); Watch mode has everything
-const UNLOCKS = [
-  { towers: ['arrow', 'cannon', 'frost'], max: 2, spec: false, note: '' },
-  { towers: ['arrow', 'cannon', 'frost', 'tesla'], max: 3, spec: false, note: 'New tower: Tesla Coil. Every tower can now reach level 3.' },
-  { towers: TYPES.filter(k => k !== 'barracks' && k !== 'drum'), max: 3, spec: true, note: 'New tower: Flame Tower. Specialisations and their ranks are open.' },
-  { towers: TYPES.filter(k => k !== 'drum'), max: 3, spec: true, note: 'New tower: Barracks. Its soldiers block the road and fight enemies hand to hand.' },
-  { towers: TYPES, max: 3, spec: true, note: 'New tower: War Drum. The towers around it fire faster.' },
-];
 function gateTier(s = loadSave()) { let f = 0; LEVELS.forEach((L, i) => { const st = levelState(s, i); if (st === 'open' || st === 'done') f = i; }); return f >= 7 ? 4 : f >= 3 ? 3 : Math.min(2, f); }
 const levelTier = i => i >= 7 ? 4 : i >= 3 ? 3 : Math.min(2, i); // each level has its own tower set, even when replayed later
 const gateFor = mode => mode === 'play' ? UNLOCKS[camp.level != null ? levelTier(camp.level) : gateTier()] : UNLOCKS[4];
-const DIFFS = [{ k: 'casual', name: 'Casual', mul: 1, dmg: 1, note: 'Enemies at their base health and damage' }, { k: 'normal', name: 'Normal', mul: 1.25, dmg: 1.25, note: 'Enemies have 25% more health and deal 25% more damage' }, { k: 'impossible', name: 'Impossible', mul: 1.5, dmg: 1.5, note: 'Enemies have 50% more health and deal 50% more damage' }];
 const SAVE_KEY = 'voxelSiege.save.v2';
 let SAVE_MEM = null;
 function loadSave() {
@@ -4313,7 +4290,6 @@ function cloudPush() {
 })();
 const levelStars = (s, L) => L.map ? (s.stars[L.map] || 0) : 0; // best stars on any difficulty: decides what is unlocked
 const DCOLS = [{ f: '#c87a3a', e: '#7a3e14' }, { f: '#a4b4cc', e: '#38445a' }, { f: '#f2c230', e: '#9a6a08' }]; // copper, silver, gold
-const BOUNTY = [0, 1, 3]; // skill points for the first win of a level on Normal / Impossible
 const trackOf = (s, key) => (s.sd && s.sd[key]) || [0, 0, 0];
 const bountyPts = s => Object.values(s.claims || {}).reduce((n, c) => n + c.reduce((a, v, i) => a + (v ? BOUNTY[i] : 0), 0), 0);
 const skillPts = s => totalStars(s) + bountyPts(s);
@@ -4560,6 +4536,7 @@ function openBrief(i) {
   { const tk = trackOf(s, L.map), cl = s.claims[L.map] || [0, 0, 0];
     $('bBest').innerHTML = `<span class="b-trk">${DIFFS.map((D, di) => `<span class="b-tr${tk[di] ? '' : ' off'}" title="${D.name}: ${tk[di]} of 3 stars${BOUNTY[di] ? (cl[di] ? ', first-clear bounty claimed' : `, first clear gives +${BOUNTY[di]} skill point${BOUNTY[di] > 1 ? 's' : ''}`) : ''}">${crestSVG(di, 15)}${starsHTML(tk[di], di)}</span>`).join('')}</span>`; }
   renderDiff(s.diff);
+  renderHeroPicker('briefHeroes');
   $('brief').hidden = false; $('bStart').focus();
 }
 function renderDiff(k) {
@@ -4610,141 +4587,13 @@ const SKI = {
 };
 const skI = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SKI[k] || SKI.star}</svg>`;
 const SK_CASTLE = '<svg class="sk-k" viewBox="0 0 64 64" aria-hidden="true"><path d="M10 58V26h8v6h6v-6h8v6h6v-6h8v6h6v-6h2v32z" fill="#d8c8a8" stroke="#4a2f14" stroke-width="3" stroke-linejoin="round"/><path d="M26 58V44a6 6 0 0 1 12 0v14" fill="#4a2f14"/><path d="M32 6v18M32 6h14l-4 5 4 5H32" fill="#c8302a" stroke="#4a2f14" stroke-width="2.5" stroke-linejoin="round"/></svg>';
-// [id, row, col (0-4, halves allowed), cost, name, effect, icon, parents (any one opens it), 1-of-2 group]
-// Every tree has its own shape: Kingdom is a wide crown, Archer a tall spine, Cannon a diamond that fans out,
-// Frost a snowflake around a hub, Tesla a zigzag bolt, Flame a spreading fan, Barracks splits twice, War Drum crosses over.
-const SK = {
-  kingdom: { name: 'Kingdom', shape: 'Crown', blurb: 'The castle and your purse. Three lanes from one charter, and one big choice at the bottom.', nodes: [
-    ['root', 0, 2, 1, 'Royal Charter', '+10 starting gold in every battle', 'gold', []],
-    ['chest', 1, .5, 1, 'War Chest', '+20 more starting gold', 'gold', ['root']],
-    ['muster', 1, 2, 1, 'Bounty Board', 'Wave-clear gold +25%', 'gold', ['root']],
-    ['walls', 1, 3.5, 1, 'Stone Walls', 'Castle has 110 health instead of 100', 'wall', ['root']],
-    ['tax', 2, 0, 2, 'Tax Collectors', '+6% gold for each enemy defeated', 'gold', ['chest']],
-    ['early', 2, 1.33, 2, 'Early Bird', 'Calling a wave early pays 25% more', 'spd', ['chest', 'muster']],
-    ['qm', 2, 2.67, 2, 'Salvage', 'Selling refunds 80% instead of 70%', 'gold', ['muster', 'walls']],
-    ['slits', 2, 4, 2, 'Arrow Slits', 'The castle shoots enemies within 4 tiles: 8 damage every second', 'bow', ['walls']],
-    ['interest', 3, .67, 2, 'Interest', 'Between waves, earn 5% of your unspent gold (up to 25)', 'gold', ['tax', 'early']],
-    ['repair', 3, 3.33, 2, 'Repair Crews', 'The castle heals 2 health after each wave', 'hp', ['qm', 'slits']],
-    ['treasury', 4, 1, 3, 'Royal Treasury', '+50 starting gold, and selling refunds 90%', 'gold', ['interest'], 'K'],
-    ['stand', 4, 3, 3, 'Last Stand', 'Once a battle, at 25 castle health every tower fires 30% faster for 10 s', 'star', ['repair'], 'K'],
-  ] },
-  arrow: { name: 'Archer Tower', shape: 'Spine', blurb: 'A tall spine of marksmanship with twigs off the side. Longbow or Volley comes late.', nodes: [
-    ['root', 0, 2, 1, 'Recruit Archers', '+5% damage', 'dmg', []],
-    ['tips', 1, 2, 1, 'Sharpened Tips', '+8% damage', 'dmg', ['root']],
-    ['draw', 2, .8, 2, 'Quick Draw', 'Fires 10% faster', 'spd', ['tips']],
-    ['eye', 2, 2, 1, 'Eagle Eye', '+8% range', 'rng', ['tips']],
-    ['sky', 2, 3.2, 2, 'Sky Watch', '+20% damage to flyers', 'bird', ['tips']],
-    ['barb', 3, 2, 2, 'Barbed Arrows', 'Every 5th arrow deals double damage', 'dmg', ['eye']],
-    ['long', 4, 1, 2, 'Longbow Drills', 'Longbow arrows ignore 25% of armor', 'bow', ['barb', 'draw'], 'A'],
-    ['vol', 4, 3, 2, 'Volley Drills', 'Volley shoots 1 more enemy at once', 'volley', ['barb', 'sky'], 'A'],
-    ['head', 5, .5, 2, 'Headhunter', 'Longbow: every 4 s, a golden arrow for double damage at an enemy below 40% health', 'dmg', ['long']],
-    ['mark', 5, 2, 2, 'Hunter’s Mark', 'Hit enemies take 10% more damage from all towers for 2 s', 'rng', ['long', 'vol']],
-    ['bleed', 5, 3.5, 2, 'Barbed Heads', 'Volley arrows make enemies bleed: 4 damage a second for 3 s', 'dmg', ['vol']],
-    ['dead', 6, .5, 3, 'Deadeye', 'Longbow: 12% chance to slay a non-boss enemy outright; bosses take triple damage instead', 'star', ['head']],
-    ['guild', 6, 2, 3, 'Fletchers’ Guild', 'Every Archer Tower fires 10% faster', 'spd', ['mark']],
-    ['storm', 6, 3.5, 3, 'Arrow Storm', 'Volley: every 8 s, 12 arrows rain on a 2-tile circle around the target', 'star', ['bleed']],
-  ] },
-  cannon: { name: 'Cannon', shape: 'Diamond', blurb: 'Splits early, comes back together at Earthshaker, then fans out into Mortar or Scattergun.', nodes: [
-    ['root', 0, 2, 1, 'Powder Kegs', '+5% damage', 'dmg', []],
-    ['powder', 1, 1, 1, 'Black Powder', 'Splash radius +12%', 'bomb', ['root']],
-    ['heavy', 1, 3, 1, 'Heavy Shells', '+8% damage', 'dmg', ['root']],
-    ['conc', 2, 0, 2, 'Concussion', 'Splash slows ground enemies by 20% for 1 s', 'stun', ['powder']],
-    ['reload', 2, 2, 2, 'Fast Reload', 'Fires 10% faster', 'spd', ['powder', 'heavy']],
-    ['iron', 2, 4, 2, 'Iron Shot', '+15% damage to enemies with armor', 'arm', ['heavy']],
-    ['shaker', 3, 2, 2, 'Earthshaker', 'Every 3rd shell stuns ground enemies for 1 s', 'stun', ['conc', 'reload', 'iron']],
-    ['mortar', 4, 1, 2, 'Mortar Crews', 'Siege Mortar’s blind spot shrinks from 3 tiles to 2', 'bomb', ['shaker'], 'A'],
-    ['scatter', 4, 3, 2, 'Scatter Crews', 'Scattergun’s cone is much wider', 'volley', ['shaker'], 'A'],
-    ['sapper', 5, .5, 2, 'Sapper Shells', 'Siege Mortar ignores 10% more armor', 'arm', ['mortar']],
-    ['bunker', 5, 1.5, 2, 'Bunker Buster', 'Siege Mortar deals 25% more damage to bosses', 'dmg', ['mortar']],
-    ['grape', 5, 2.5, 2, 'Grapeshot', 'Scattergun deals 15% more damage', 'volley', ['scatter']],
-    ['knock', 5, 3.5, 2, 'Knockback', 'Scattergun pushes ground enemies back 0.6 tiles (not bosses)', 'stun', ['scatter']],
-    ['cluster', 6, 1, 3, 'Cluster Bomb', 'Siege Mortar: each shell bursts into 5 bomblets for 40% damage each', 'star', ['sapper', 'bunker']],
-    ['breath', 6, 3, 3, 'Dragon’s Breath', 'Scattergun: blasts leave burning ground for 3 s', 'star', ['grape', 'knock']],
-  ] },
-  frost: { name: 'Frost Spire', shape: 'Snowflake', blurb: 'Three arms of cold meet at Absolute Zero, then the ice splits into Deep Freeze or Glacier Field.', nodes: [
-    ['root', 0, 2, 1, 'Cold Snap', 'Slows 3% more', 'snow', []],
-    ['linger', 1, .5, 1, 'Lingering Cold', 'Slows last 0.5 s longer', 'spd', ['root']],
-    ['hoar', 1, 2, 1, 'Hoarfrost', 'Frost shards deal 10% more damage', 'dmg', ['root']],
-    ['lens', 1, 3.5, 1, 'Crystal Lens', '+10% range', 'rng', ['root']],
-    ['brittle', 2, .5, 2, 'Brittle Ice', 'Frozen enemies: the next physical hit ignores half their armor', 'arm', ['linger']],
-    ['bite', 2, 2, 2, 'Frostbite', 'Slowed enemies take 2 damage a second', 'snow', ['hoar']],
-    ['mirror', 2, 3.5, 2, 'Ice Mirror', 'Each shot sends a second shard at another enemy for 40% damage', 'volley', ['lens']],
-    ['zero', 3, 2, 2, 'Absolute Zero', 'Any frost hit has a 10% chance to freeze for 1 s', 'snow', ['brittle', 'bite', 'mirror']],
-    ['deep', 4, 1, 2, 'Deep Freeze Rites', 'Deep Freeze holds enemies 0.5 s longer', 'snow', ['zero'], 'A'],
-    ['glacier', 4, 3, 2, 'Glacier Rites', 'Glacier Field’s ice patches are 25% larger', 'snow', ['zero'], 'A'],
-    ['perma', 5, 1, 2, 'Permafrost', 'Deep Freeze: every 3rd shard on the same enemy freezes it solid for 1.2 s', 'snow', ['deep']],
-    ['black', 5, 3, 2, 'Black Ice', 'Glacier Field’s shards leave ice on the road for 5 s', 'snow', ['glacier']],
-    ['shatter', 6, 1, 3, 'Shatter', 'Deep Freeze: a non-boss enemy killed while frozen explodes for 30% of its max health', 'star', ['perma']],
-    ['aval', 6, 3, 3, 'Avalanche', 'Glacier Field: every 6 s, up to 3 enemies on the ice freeze solid for 1.2 s', 'star', ['black']],
-  ] },
-  tesla: { name: 'Tesla Coil', shape: 'Bolt', blurb: 'A zigzag like a lightning strike, with sparks off each bend. Storm or Overload at the bottom.', nodes: [
-    ['root', 0, 1.2, 1, 'Copper Coils', '+5% damage', 'bolt', []],
-    ['cond', 1, 2.6, 1, 'Conductive Coils', 'Lightning chains to 1 more enemy', 'bolt', ['root']],
-    ['ground', 1, 4, 1, 'Grounding Rods', '+8% range', 'rng', ['root']],
-    ['cap', 2, 1.2, 2, 'Capacitor', 'Fires 10% faster', 'spd', ['cond']],
-    ['static', 3, 2.6, 2, 'Static Field', 'Chained enemies carry a charge for 2 s: if they die, they burst for 30% damage to enemies nearby', 'stun', ['cap']],
-    ['rod', 3, .2, 2, 'Lightning Rod', '+25% damage to flyers', 'bird', ['cap']],
-    ['storm', 4, 1.2, 2, 'Storm Calling', 'Storm chains to 2 more enemies', 'bolt', ['static'], 'A'],
-    ['over', 4, 2.8, 2, 'Overload Tuning', 'Overload reaches full charge in 2 s instead of 3', 'bolt', ['static'], 'A'],
-    ['ball', 4, 4, 2, 'Forked Lightning', 'Every 3rd shot starts a second chain at another enemy', 'bolt', ['static', 'ground']],
-    ['thunder', 5, .4, 2, 'Thunderhead', 'Storm’s lightning loses less damage per jump (15% → 8%)', 'bolt', ['storm']],
-    ['spill', 5, 3.6, 2, 'Arc Spill', 'Overload’s beam arcs to one nearby enemy for 35% damage', 'bolt', ['over']],
-    ['super', 6, 1.2, 3, 'Supercell', 'Storm’s lightning jumps 40% further between enemies', 'star', ['thunder']],
-    ['melt', 6, 2.8, 3, 'Meltdown', 'Overload: at 4x charge or more, the beam erupts every 6 s for 12x damage, 6x to enemies around it', 'star', ['spill']],
-  ] },
-  flame: { name: 'Flame Tower', shape: 'Fan', blurb: 'Fire spreads: the tree fans out wide before you pick Fireline or Inferno.', nodes: [
-    ['root', 0, 2, 1, 'Pilot Light', '+5% damage', 'fire', []],
-    ['fuel', 1, 1, 1, 'Hotter Fuel', 'Burning lasts 1 s longer', 'fire', ['root']],
-    ['bellows', 1, 3, 1, 'Bellows', '+10% range', 'rng', ['root']],
-    ['scorch', 2, 0, 2, 'Scorch', 'Burning enemies lose 15% of their armor', 'arm', ['fuel']],
-    ['nozzle', 2, 1.33, 2, 'Wide Nozzle', 'Fire cone 15% wider', 'fire', ['fuel']],
-    ['oil', 2, 2.67, 2, 'Oil Slick', 'Enemies standing in fire are slowed 15%', 'stun', ['bellows']],
-    ['valve', 2, 4, 2, 'Pressure Valve', 'Fires 10% faster', 'spd', ['bellows']],
-    ['line', 3, .67, 2, 'Fireline Doctrine', 'Fireline’s ember patches last 2 s longer', 'fire', ['scorch', 'nozzle'], 'A'],
-    ['ash', 3, 2, 2, 'Phoenix Ash', 'Enemies that die burning drop 1 extra gold', 'gold', ['nozzle', 'oil']],
-    ['inf', 3, 3.33, 2, 'Inferno Doctrine', 'Inferno: every 1.5 s, fire jumps from a burning enemy to a nearby one for triple damage', 'fire', ['oil', 'valve'], 'A'],
-    ['napalm', 4, .67, 2, 'Napalm', 'Fireline’s ember patches deal 30% more damage', 'fire', ['line']],
-    ['ever', 4, 2, 3, 'Everburn', 'Shamans can’t heal burning enemies', 'fire', ['ash']],
-    ['hungry', 4, 3.33, 2, 'Hungry Flames', 'Inferno: burning lasts 4 s instead of 1.6', 'fire', ['inf']],
-    ['wall', 5, .67, 3, 'Firewall', 'Fireline: every 6 s it sets 3 tiles of road ablaze', 'star', ['napalm']],
-    ['wild', 5, 3.33, 3, 'Wildfire', 'Inferno: an enemy that dies burning sets everything within 1.5 tiles alight', 'star', ['hungry']],
-  ] },
-  barracks: { name: 'Barracks', shape: 'Twin fork', blurb: 'Splits twice: Paladins or Rangers, then a second choice inside each side.', nodes: [
-    ['root', 0, 2, 1, 'Recruits', 'Soldiers +10% health', 'hp', []],
-    ['gamb', 1, 1, 1, 'Padded Gambesons', 'Soldiers +10% armor', 'arm', ['root']],
-    ['drill', 1, 3, 1, 'Drill Yard', 'Soldiers +10% damage', 'dmg', ['root']],
-    ['medic', 2, 0, 2, 'Field Medic', 'Soldiers heal 3% a second out of combat instead of 2%', 'hp', ['gamb']],
-    ['horn', 2, 2, 2, 'Rally Horn', 'Soldiers come back 20% faster', 'spd', ['gamb', 'drill']],
-    ['spear', 2, 4, 2, 'Spear Wall', 'A soldier strikes first, for free, when an enemy reaches it', 'dmg', ['drill']],
-    ['pala', 3, 1, 2, 'Paladin Vows', 'Paladins +10% health and +10% magic resist', 'sun', ['medic', 'horn'], 'A'],
-    ['rang', 3, 3, 2, 'Ranger Training', 'Rangers shoot 0.5 tiles further', 'bow', ['horn', 'spear'], 'A'],
-    ['right', 4, 0, 2, 'Righteous', 'Holy strike every 3rd hit instead of every 4th', 'sun', ['pala'], 'P'],
-    ['wind', 4, 1, 2, 'Second Wind', '20% chance to heal to full health after defeating an enemy', 'hp', ['pala'], 'P'],
-    ['fourth', 4, 2, 3, 'Fourth Man', 'Every Barracks sends one extra soldier', 'up', ['pala', 'rang']],
-    ['nimble', 4, 3, 2, 'Nimble', '20% chance to dodge a melee attack', 'dodge', ['rang'], 'R'],
-    ['broad', 4, 4, 2, 'Broadheads', 'Arrows have a 25% chance to pierce into a second enemy', 'bow', ['rang'], 'R'],
-    ['shield', 5, .5, 3, 'Divine Shield', 'Paladins: once per life, one about to fall turns invulnerable for 3 s and heals half its health', 'star', ['right', 'wind']],
-    ['hawk', 5, 3.5, 3, 'Hawk Companions', 'Rangers: each keeps a hawk that dives at flyers for 6 damage a second', 'star', ['nimble', 'broad']],
-  ] },
-  drum: { name: 'War Drum', shape: 'Crossbeat', blurb: 'Two rhythms cross over and meet at Thunder Beat, then split into War Horn or Hex Totem.', nodes: [
-    ['root', 0, 2, 1, 'Drummer Boys', 'Fire rate boost +2%', 'drum', []],
-    ['hide', 1, .5, 1, 'Taut Hide', 'Radius +0.5 tiles', 'rng', ['root']],
-    ['beat', 1, 3.5, 1, 'Steady Beat', 'Fire rate boost +3%', 'spd', ['root']],
-    ['hymn', 2, 3, 2, 'Battle Hymn', 'Soldiers in the radius heal twice as fast', 'hp', ['hide']],
-    ['march', 2, 1, 2, 'Marching Pace', 'Soldiers in the radius move 30% faster', 'spd', ['beat']],
-    ['thund', 3, 2, 3, 'Thunder Beat', 'Every 12 s the drum stuns ground enemies in its radius for 0.5 s', 'stun', ['hymn', 'march']],
-    ['hornm', 4, .5, 2, 'Horn Makers', 'War Horn’s range boost goes from +20% to +30%', 'horn', ['thund'], 'A'],
-    ['twin', 4, 2, 2, 'Twin Rhythm', 'A tower near two drums gets the second at half strength', 'drum', ['thund']],
-    ['totem', 4, 3.5, 2, 'Totem Carvers', 'Hex Totem’s curse goes from +15% to +22% damage taken', 'hex', ['thund'], 'A'],
-    ['rally', 5, .5, 2, 'Rally Cry', 'War Horn: soldiers in the radius deal 20% more damage', 'horn', ['hornm']],
-    ['wither', 5, 3.5, 2, 'Withering', 'Hex Totem: cursed enemies lose 10% armor and magic resist', 'hex', ['totem']],
-    ['charge', 6, .5, 3, 'Charge!', 'War Horn: every 20 s, a blast pushes every ground enemy in the radius back 1 tile', 'star', ['rally']],
-    ['soul', 6, 3.5, 3, 'Soul Harvest', 'Hex Totem: cursed enemies that die give +2 gold and heal the castle 1 (10 a battle at most)', 'star', ['wither']],
-  ] },
-};
 const SK_ORDER = ['kingdom', 'arrow', 'cannon', 'frost', 'tesla', 'flame', 'barracks', 'drum'];
 const SK_DEV_BONUS = 150; // testing mode gives extra points so the whole tree can be tried
-for (const k of SK_ORDER) { SK[k].by = {}; for (const [id, r, c, cost, name, fx, ic, par, grp] of SK[k].nodes) SK[k].by[id] = { id, r, c, cost, name, fx, ic, par, grp, sig: ic === 'star' || grp === 'K' }; }
+const SK = Object.fromEntries(SK_ORDER.map(k => {
+  const tree = SK_DATA[k], by = {};
+  for (const [id, r, c, cost, name, fx, ic, par, grp] of tree.nodes) by[id] = { id, r, c, cost, name, fx, ic, par, grp, sig: ic === 'star' || grp === 'K' };
+  return [k, { ...tree, by }];
+}));
 const skTree = s => { s.tree = s.tree || {}; for (const k of SK_ORDER) s.tree[k] = s.tree[k] || {}; return s.tree; };
 const skSpentIn = (s, k) => Object.keys(skTree(s)[k]).reduce((n, id) => n + (SK[k].by[id] ? SK[k].by[id].cost : 0), 0);
 const skSpent = s => SK_ORDER.reduce((n, k) => n + skSpentIn(s, k), 0);
@@ -4753,7 +4602,6 @@ const skLeft = s => skHave(s) - skSpent(s);
 // which trees are open: Kingdom always; a tower's tree once that tower is unlocked; specialisation nodes once specialisations are
 const skGate = s => UNLOCKS[Math.max(gateTier(s), s.dev ? 4 : 0)];
 const skOpen = (s, k) => k === 'kingdom' || skGate(s).towers.includes(k);
-const SK_WHEN = { arrow: '1-1', cannon: '1-1', frost: '1-1', tesla: '1-2', flame: '1-3', barracks: '1-4', drum: '3-1' };
 function skState(s, k, x, left) {
   const o = skTree(s)[k];
   if (o[x.id]) return 'owned';
@@ -4895,7 +4743,7 @@ function updateEnemyCard(dt, force) {
   }
   const s = e.type === 'boss' ? 2.4 : e.type === 'brute' ? 1.5 : e.type === 'soldier' ? 1.05 : .85;
   eRing.visible = true; eRing.position.set(e.g.position.x, groundY(e.g.position.x, e.g.position.z) + .06, e.g.position.z); eRing.scale.setScalar(s);
-  const f = Math.max(0, e.hp / e.maxHp), slowed = e.slow > 0, burning = e.burn > 0;
+  const f = Math.max(0, e.hp / e.maxHp), slowed = e.slow > 0, burning = e.src && isBurning(G, e.src);
   const key = `${Math.ceil(e.hp)}|${slowed}|${burning}`;
   if (!force && key === ecache) return; ecache = key;
   $('ehp').style.width = f * 100 + '%';
@@ -4930,7 +4778,7 @@ function selectSoldier(so) {
   eRing.material.color.setHex(0x4aa8ff);
   $('edot').style.background = '#2a52c8'; $('ename').textContent = so.name;
   const tw = so.tw, lvl = tw.spec ? `${SPEC.barracks[tw.spec].name} barracks, rank ${tw.rank}` : `level ${Math.min(tw.lvl, 3)} Barracks`;
-  $('edesc').textContent = SOL_INFO[so.type][1] + (tw.militia ? ' Called by Militia Call; heads home after 12 s.' : ' Serves at a ' + lvl + '.');
+  $('edesc').textContent = HEROES[so.type]?.lore || SOL_INFO[so.type][1] + (tw.militia ? ' Called by Militia Call; heads home after 12 s.' : ' Serves at a ' + lvl + '.');
   updateSoldierCard(0, true);
 }
 let scache = '';
@@ -4943,18 +4791,19 @@ function updateSoldierCard(dt, force) {
   }
   eRing.visible = true; eRing.position.set(so.g.position.x, groundY(so.g.position.x, so.g.position.z) + .06, so.g.position.z); eRing.scale.setScalar(.75);
   const st = so.st, f = Math.max(0, so.hp / so.maxHp), e = so.target && so.target.alive ? so.target : null;
-  const doing = e ? (st.ranged && (e.def.air || so.center.distanceTo(e.center) > 1.2) ? 'Shooting ' : 'Fighting ') + e.def.title : 'Guarding the rally point';
+  const hero = HEROES[so.type];
+  const doing = e ? ((so.type === 'corwin' || st.ranged && (e.def.air || so.center.distanceTo(e.center) > 1.2)) ? 'Attacking ' : 'Fighting ') + e.def.title : hero ? 'Ready' : 'Guarding the rally point';
   const key = `${Math.ceil(so.hp)}|${doing}`; if (!force && key === scache) return; scache = key;
   $('ehp').style.width = f * 100 + '%'; $('ehp').style.background = f > .6 ? 'var(--go)' : f > .3 ? '#f2c94c' : 'var(--bad)';
   $('ekv').innerHTML = [
-    ['Unit', SOL_INFO[so.type][0]],
+    ['Unit', hero?.title || SOL_INFO[so.type][0]],
     ['Health', `${Math.ceil(so.hp)} / ${so.maxHp}`],
     ['Damage', `${+st.dmg.toFixed(1)} per hit, every ${st.rate}s`],
     ...(st.ranged ? [['Range', `Arrows up to ${st.ranged} tiles, ground and air`]] : []),
     ...(st.holy ? [['Holy strike', `${st.holy} true damage every ${st.holyN === 3 ? '3rd' : '4th'} hit`]] : []),
     ['Armor', pct(st.armor) + (st.armor ? ' less physical damage' : '')],
     ['Magic resist', pct(st.mr) + (st.mr ? ' less magic damage' : '')],
-    ['Heals', `${Math.round((st.heal || st.regen || SOL_REGEN) * 100)}% health per second out of combat`],
+    ...(hero ? [] : [['Heals', `${Math.round((st.heal || st.regen || SOL_REGEN) * 100)}% health per second out of combat`]]),
     tw0(so) ? ['Leaves in', `${Math.ceil(so.ttl || 0)} s`] : ['Respawn', `${st.resp}s after falling`],
     ['Now', doing],
   ].map(([a, b]) => `<span>${a}</span><div>${b}</div>`).join('');
@@ -4977,7 +4826,28 @@ pr.setPixelRatio(Math.min(devicePixelRatio, 2)); pr.toneMapping = THREE.ACESFilm
 const litScene = () => { const s = new THREE.Scene(); s.add(new THREE.HemisphereLight(0xeaf4ff, 0x4a5a3a, 1.6)); const l = new THREE.DirectionalLight(0xffffff, 2.4); l.position.set(3, 6, 5); s.add(l); return s; };
 const pScene = litScene();
 const pCam = new THREE.PerspectiveCamera(32, 1, .1, 100);
-const pv = { obj: null, tw: null, parts: null, t: 0 };
+const ALDRIC_CLIPS = {
+  idle: { name: 'Idle', motion: 2.1, loop: 2.1 },
+  walk: { name: 'March', motion: Math.PI * .6, loop: Math.PI * .6 },
+  slash: { name: 'Sword slash', motion: .36, loop: 1.2 },
+  hurt: { name: 'Hit reaction', motion: .24, loop: 1 },
+  'rally-the-line': { name: HERO_ABILITIES['rally-the-line'].name, motion: 1, loop: 1.85 },
+  'shield-wall': { name: HERO_ABILITIES['shield-wall'].name, motion: 1, loop: 1.6 },
+  'the-gate-holds': { name: HERO_ABILITIES['the-gate-holds'].name, motion: 1.05, loop: 2.2 },
+  fall: { name: 'Defeat', motion: .66, loop: 1.7 },
+};
+const CORWIN_CLIPS = {
+  idle: ALDRIC_CLIPS.idle,
+  walk: { ...ALDRIC_CLIPS.walk, name: 'Walk' },
+  'ember-bolt': { name: 'Ember bolt', motion: .36, loop: 1.2 },
+  hurt: ALDRIC_CLIPS.hurt,
+  kindle: { name: HERO_ABILITIES.kindle.name, motion: .72, loop: 1.85 },
+  'ashen-ward': { name: HERO_ABILITIES['ashen-ward'].name, motion: .93, loop: 2.0 },
+  'undying-coal': { name: HERO_ABILITIES['undying-coal'].name, motion: 1.12, loop: 2.2 },
+  fall: { ...ALDRIC_CLIPS.fall, motion: .72 },
+};
+const HERO_CLIPS = { aldric: ALDRIC_CLIPS, corwin: CORWIN_CLIPS };
+const pv = { rigs: {}, hero: null, clip: 'idle', time: 0, playing: !matchMedia('(prefers-reduced-motion: reduce)').matches };
 // one model, either a tower at a level ('a'/'b' = level 4 specialisation) or an enemy
 function makeModel(tab, id, lvl) {
   if (tab === 'towers') {
@@ -5006,26 +4876,95 @@ function thumb(tab, id, lvl = 1) {
   tScene.remove(m.obj); if (m.tw) m.tw.remove();
   return thumbs[key];
 }
-function setPreview() {
-  if (pv.obj) { pScene.remove(pv.obj); if (pv.tw) pv.tw.remove(); }
-  const m = makeModel(bk.tab, bk.id, bk.lvl);
-  pv.obj = m.obj; pv.tw = m.tw; pv.parts = m.parts;
-  pScene.add(pv.obj); aimAt(pv.obj, pCam);
+function showHeroPreview(hero) {
+  if (!pv.banner) {
+    pScene.background = new THREE.Color(0x26313f);
+    const plinth = new THREE.Mesh(new THREE.CylinderGeometry(1.55, 1.68, .11, 8), M(0x607079));
+    plinth.position.y = -.065;
+    pScene.add(plinth);
+    pv.banner = heroBanner.clone();
+    pv.banner.position.set(-.83, 0, -.12);
+    pScene.add(pv.banner);
+    pv.gate = spectralGate.clone();
+    pv.gate.position.set(0, 0, -.82);
+    pScene.add(pv.gate);
+    pCam.position.set(.08, 2.1, 4.5);
+    pCam.lookAt(.02, .82, 0);
+  }
+  if (!pv.rigs[hero]) {
+    const b = new THREE.Group(), facing = new THREE.Group();
+    facing.rotation.y = hero === 'aldric' ? -.48 : .38;
+    facing.add(b); pScene.add(facing);
+    pv.rigs[hero] = { b, facing, ...EMODEL.build(hero, b) };
+    if (hero === 'corwin') pv.embers = makeCorwinPreviewFx();
+  }
+  if (pv.hero) pv.rigs[pv.hero].facing.visible = false;
+  pv.hero = hero;
+  pv.rigs[hero].facing.visible = true;
+  bkB.querySelector('.hero-stage').prepend(bkCv);
+  bkCv.hidden = false;
+  renderPreview(0);
 }
 function renderPreview(dt) {
-  if (bookEl.hidden || !pv.obj || bkCv.hidden) return;
+  if (bookEl.hidden || bkCv.hidden) return;
   const w = bkCv.clientWidth, h = bkCv.clientHeight, k = pr.getPixelRatio();
   if (!w || !h) return;
-  if (bkCv.width !== Math.round(w * k) || bkCv.height !== Math.round(h * k)) { pr.setSize(w, h, false); pCam.aspect = w / h; pCam.updateProjectionMatrix(); }
-  pv.t += dt; pv.obj.rotation.y += dt * .7;
-  const p = pv.parts;
-  if (p) {
-    const s = Math.sin(pv.t * 6);
-    if (p.legs.length) { p.legs[0].rotation.x = s * .6; p.legs[1].rotation.x = -s * .6; }
-    if (p.arms.length) { p.arms[0].rotation.x = -s * .4; p.arms[1].rotation.x = s * .4; }
-    if (p.wings) { const f = Math.sin(pv.t * 10) * .8; p.wings[0].rotation.z = f; p.wings[1].rotation.z = -f; }
+  if (bkCv.width !== Math.round(w * k) || bkCv.height !== Math.round(h * k)) {
+    pr.setSize(w, h, false); pCam.aspect = w / h; pCam.updateProjectionMatrix();
   }
+  const { motion, loop } = HERO_CLIPS[pv.hero][pv.clip];
+  if (pv.playing) pv.time = (pv.time + dt) % loop;
+  const t = pv.time;
+  const active = t <= motion || pv.clip === 'fall';
+  poseHero(pv.rigs[pv.hero], pv.hero, active ? pv.clip : 'idle', active ? Math.min(t, motion) : t);
+  pv.banner.visible = pv.clip === 'rally-the-line' && t > .41;
+  pv.banner.scale.y = smooth(t, .41, .64) * (1 - smooth(t, loop - .3, loop));
+  pv.gate.visible = pv.clip === 'the-gate-holds' && t > .38;
+  pv.gate.scale.y = smooth(t, .38, .65) * (1 - smooth(t, loop - .3, loop));
+  if (pv.embers) renderCorwinPreviewFx(pv.embers, pv.hero === 'corwin' ? pv.clip : null, t);
   pr.render(pScene, pCam);
+}
+function makeCorwinPreviewFx() {
+  const ember = new THREE.Mesh(AG.oct, ME(0xff9349, 1.3));
+  const fire = new THREE.Group();
+  for (let i = 0; i < 9; i++) {
+    const part = new THREE.Mesh(AG.oct, ME(i % 2 ? 0xff6022 : 0xffc057, 1.4));
+    fire.add(part);
+  }
+  const tower = new THREE.Group();
+  P(tower, 0, .32, 0, .46, .64, .46, 0x785b52);
+  P(tower, 0, .66, 0, .66, .15, .66, 0xb08669);
+  for (const x of [-.22, .22]) for (const z of [-.22, .22]) P(tower, x, .77, z, .15, .17, .15, 0xb08669);
+  tower.position.set(1.02, 0, -.18);
+  const ward = wardField.clone();
+  ward.material = ward.material.clone();
+  ward.position.set(1.02, .04, -.18);
+  pScene.add(ember, fire, tower, ward);
+  return { ember, fire, tower, ward };
+}
+function renderCorwinPreviewFx({ ember, fire, tower, ward }, clip, t) {
+  const launch = clip === 'ember-bolt' ? .15 : .33, impact = clip === 'ember-bolt' ? .36 : .62;
+  ember.visible = (clip === 'ember-bolt' || clip === 'kindle') && t >= launch && t < impact;
+  if (ember.visible) {
+    const p = (t - launch) / (impact - launch);
+    ember.position.set(lerp(.32, 1.28, p), lerp(.92, clip === 'kindle' ? .14 : .72, p) + Math.sin(p * Math.PI) * .24, .08);
+    ember.scale.setScalar(.09 + .08 * Math.sin(p * Math.PI));
+  }
+  tower.visible = clip === 'ashen-ward';
+  ward.visible = tower.visible && t > .40;
+  if (ward.visible) {
+    ward.scale.setScalar(.48 + smooth(t, .4, .85) * .34);
+    ward.material.opacity = (1 - smooth(t, 1.55, 1.95)) * .68;
+  }
+  const erupts = clip === 'undying-coal';
+  const sparkTime = t - (erupts ? .45 : clip === 'ashen-ward' ? .42 : .62);
+  fire.visible = (erupts || clip === 'kindle' || clip === 'ashen-ward') && sparkTime > 0 && sparkTime < 1.1;
+  if (fire.visible) for (const [i, part] of fire.children.entries()) {
+    const angle = i * 2.4, p = (sparkTime * (erupts ? .75 : 1.6) + i / 9) % 1;
+    const r = erupts ? .30 + sparkTime * .82 : .13 + (i % 3) * .10;
+    part.position.set((erupts ? 0 : 1.04) + Math.cos(angle) * r, (tower.visible ? .5 : .08) + p * (erupts ? 1.4 : .64), Math.sin(angle) * r);
+    part.scale.setScalar((1 - p) * (erupts ? .15 : .09) * (1 - smooth(sparkTime, .7, 1.1)));
+  }
 }
 // level helpers: 1, 2, 3, then 'a' or 'b' (level 4)
 const lvStat = (t, l) => typeof l === 'number' ? tStat(t, l) : specStat(t, l);
@@ -5100,6 +5039,8 @@ const almNum = v => v < 10 ? String(Math.round(v * 10) / 10) : String(Math.round
 const coinI = '<i class="al-coin" aria-hidden="true"></i>';
 function renderBook() { SKILL_VIEW = skCompute(loadSave()); try { renderBook0(); } finally { SKILL_VIEW = null; } }
 function renderBook0() {
+  bkCv.hidden = true;
+  bookEl.querySelector('.bk').append(bkCv);
   bookEl.querySelectorAll('.tabs button').forEach(b => { b.classList.toggle('on', b.dataset.tab === bk.tab); b.setAttribute('aria-pressed', b.dataset.tab === bk.tab); });
   if (bk.tab === 'towers') {
     const t = bk.id, l = bk.lvl, dk = DTYPE[t], spec = typeof l !== 'number', rk = spec ? bk.rank || 1 : 1;
@@ -5117,6 +5058,8 @@ function renderBook0() {
           ${cmp ? `<div class="al-cmp">${cmp}</div>` : ''}<div class="al-st">${almStatHTML(cur, prev)}</div>
           ${(() => { const has = SK[t] ? SK[t].nodes.filter(n => skH(t + '.' + n[0])).map(n => n[4]) : []; return has.length ? `<div class="al-skl"><b>Skill tree:</b> ${has.join(', ')}</div>` : ''; })()}
           <div class="al-tip">${TINFO[t].tip}</div></div></section>`;
+  } else if (bk.tab === 'heroes') {
+    renderHeroBook(bk.id);
   } else {
     const k = bk.id, d = ED[k], FM = MAPS.find(m => m.units[k] || (k === 'boss' && Object.keys(m.bosses).length)) || MAP, g = FM.growth[0]; // health on the map where it first appears
     const res = (lab, v, what, col) => `<div title="${v > 0 ? `Blocks ${Math.round(v * 100)}% of ${what} damage` : `No ${what} resistance`}"><em>${lab}</em>${v > 0
@@ -5134,6 +5077,17 @@ function renderBook0() {
 bkB.addEventListener('click', ev => {
   const b = ev.target.closest('button'); if (!b || !bkB.contains(b)) return;
   const ds = b.dataset;
+  if (ds.clip) {
+    pv.clip = ds.clip; pv.time = 0; pv.playing = true;
+    for (const button of bkB.querySelectorAll('[data-clip]')) button.setAttribute('aria-pressed', button === b);
+    bkB.querySelector('[data-preview-toggle]').textContent = 'Pause';
+    return;
+  }
+  if ('previewToggle' in ds) {
+    pv.playing = !pv.playing;
+    b.textContent = pv.playing ? 'Pause' : 'Play';
+    return;
+  }
   if (ds.rank) { bk.rank = +ds.rank; renderBook(); return; }
   if (!ds.id) return;
   bk.id = ds.id; bk.rank = 1; if (ds.lv) bk.lvl = isNaN(+ds.lv) ? ds.lv : +ds.lv;
@@ -5150,7 +5104,7 @@ function closeBook() {
   if (bk.titleWas) $('title').hidden = false;
   if (game.mode === 'play' && game.state === 'play') game.paused = bk.wasPaused;
 }
-bookEl.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => { bk.tab = b.dataset.tab; bk.id = bk.tab === 'towers' ? 'arrow' : 'runner'; bk.lvl = 1; bkB.scrollTop = 0; renderBook(); }));
+bookEl.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => { bk.tab = b.dataset.tab; bk.id = { towers: 'arrow', enemies: 'runner', heroes: 'aldric' }[bk.tab]; bk.lvl = 1; bkB.scrollTop = 0; renderBook(); }));
 $('bkclose').addEventListener('click', closeBook);
 bookEl.addEventListener('click', e => { if (e.target === bookEl) closeBook(); });
 $('bbook2').addEventListener('click', openBook);
@@ -5180,6 +5134,199 @@ function updatePlayUI(dt) {
     }
   }
   if (game.mode === 'play') updateCtrl();
+  updateHeroHUD();
+}
+
+// ================================================================ hero controls and effects
+const HERO_ART = Object.fromEntries(Object.entries(import.meta.glob('./art/heroes/*.webp', { eager: true, import: 'default' })).map(([p, url]) => [p.split('/').pop().slice(0, -5), url]));
+const abilitiesFor = key => Object.entries(HERO_ABILITIES).filter(([, a]) => a.hero === key);
+const heroBadge = key => BADGE['hero-' + key];
+const HERO_ACTION_LABEL = { 'rally-the-line': 'Rally', 'shield-wall': 'Wall', 'the-gate-holds': 'Gate', kindle: 'Kindle', 'ashen-ward': 'Ward', 'undying-coal': 'Coal' };
+let heroChoice = 'aldric', hudHeroKey, heroHudCache = '', heroEmoteUntil = 0;
+const heroHud = $('heroHud');
+function renderHeroPicker(id) {
+  const el = $(id);
+  if (!el.children.length) el.innerHTML = Object.entries(HEROES).map(([key, h]) =>
+    `<button type="button" data-hero="${key}"><img src="${heroBadge(key)}" alt=""><span><b>${h.name}</b><small>${h.role}</small></span></button>`).join('');
+  for (const b of el.children) b.setAttribute('aria-pressed', b.dataset.hero === heroChoice);
+}
+for (const id of ['briefHeroes', 'retryHeroes']) $(id).addEventListener('click', e => {
+  const b = e.target.closest('[data-hero]');
+  if (b) { heroChoice = b.dataset.hero; renderHeroPicker(id); }
+});
+const heroPassiveText = key => key === 'aldric'
+  ? `Blocks up to ${HEROES.aldric.blocks} enemies. Nearby soldiers take ${HEROES.aldric.protection * 100}% less damage within ${HEROES.aldric.aura} tiles.`
+  : `Enemies within ${HEROES.corwin.aura} tiles lose ${HEROES.corwin.resistLoss * 100} percentage points of magic resist and cannot be healed.`;
+function renderHeroBook(key) {
+  const h = HEROES[key];
+  if (pv.hero !== key) { pv.clip = 'idle'; pv.time = 0; }
+  bkB.innerHTML = `<div class="al-l hero-choices"><div class="al-eg">${Object.entries(HEROES).map(([id, d]) => `<button class="ek${id === key ? ' on' : ''}" data-id="${id}" aria-pressed="${id === key}"><img alt="" src="${heroBadge(id)}"><span>${d.name}</span></button>`).join('')}</div></div>
+    <section class="al-r" aria-live="polite"><div class="al-stage en hero-stage"><img alt="${h.name}" src="${ALM_ART['u:' + key]}"><div class="al-ban"><span>${h.name}</span><span class="al-tag">${h.title}</span></div></div>
+    <div class="al-body"><div class="hero-clips" role="group" aria-label="${h.name} animations">${Object.entries(HERO_CLIPS[key]).map(([clip, a]) => `<button type="button" data-clip="${clip}" aria-pressed="${pv.clip === clip}">${a.name}</button>`).join('')}<button type="button" data-preview-toggle>${pv.playing ? 'Pause' : 'Play'}</button></div><p>${h.lore}</p><div class="al-st"><div><em>Health</em> ${h.hp}</div><div><em>Attack</em> ${h.dmg} ${key === 'aldric' ? 'physical' : 'magic'} every ${h.rate} s</div></div>
+    <dl class="hero-book"><div><div><dt>${h.passive}</dt><dd>${heroPassiveText(key)}</dd></div></div>
+    ${abilitiesFor(key).map(([k, a]) => `<div><img src="${HERO_ART['ab-' + k]}" alt=""><div><dt>${a.name}${a.cd ? ` <small>${a.cd} s recharge</small>` : ''}</dt><dd>${HERO_ABILITY_TEXT[k]}</dd></div></div>`).join('')}</dl></div></section>`;
+  showHeroPreview(key);
+}
+function makeHeroHUD(key) {
+  hudHeroKey = key;
+  heroHudCache = '';
+  if (!key) { heroHud.replaceChildren(); return; }
+  const h = HEROES[key];
+  heroHud.innerHTML = `<button type="button" data-action="move" class="hero-portrait" aria-label="Move ${h.name}" title="Move ${h.name}"><img alt=""><span><b>${h.name}</b><small>Move</small></span></button>
+    <div class="hero-health"><meter min="0" max="${h.hp}" value="${h.hp}" aria-label="${h.name} health"></meter><span></span></div>
+    <div class="hero-actions">${abilitiesFor(key).map(([k, a]) => `<button type="button" data-action="${k}" aria-label="${a.name}"><img alt="" src="${HERO_ART['ab-' + k]}"><span></span><small>${HERO_ACTION_LABEL[k]}</small></button>`).join('')}</div>
+    <div class="hero-hint" role="status" hidden></div>`;
+}
+function heroAbilityStatus(h, k) {
+  const cd = Math.max(0, Math.ceil((h.recharge[k] || 0) - G.time));
+  if (cd) return [`${cd}s`, 'Recharging'];
+  if (k === 'the-gate-holds') {
+    const required = HERO_ABILITIES[k].hits;
+    if (h.hits < required) return [`${Math.floor(h.hits / required * 100)}%`, 'Charges as Aldric takes hits'];
+    if (h.gate) return ['Active', 'Gate is already raised'];
+    if (!heroRoadSpot(G, h.unit, 1.5)) return ['Road', 'Move Aldric near the road'];
+  }
+  if (k === 'undying-coal') {
+    if (h.coalUsed) return ['Spent', 'Already used this battle'];
+    if (!G.enemies.some(e => e.alive && isBurning(G, e))) return ['—', 'Requires a burning enemy'];
+  }
+  return ['', ''];
+}
+const AIM_TEXT = { move: 'Tap walkable ground', kindle: 'Tap the road', 'ashen-ward': 'Tap a tower' };
+function updateHeroHUD() {
+  const h = G?.hero;
+  heroHud.hidden = !h || ui.endShown || ($('ctrl').hidden && game.state === 'play');
+  if (heroHud.hidden) return;
+  if (h.key !== hudHeroKey) makeHeroHUD(h.key);
+  const { unit } = h, active = unit.alive && game.state === 'play';
+  const hp = Math.max(0, Math.ceil(unit.hp)), recovery = Math.max(0, Math.ceil(h.respawnAt - G.time));
+  const expression = game.state === 'victory' ? 'triumphant' : !unit.alive || hp / unit.maxHp <= .35 ? 'hurt' : (unit.fighting || h.route.length || heroEmoteUntil > G.time) ? 'determined' : 'neutral';
+  const move = heroHud.querySelector('[data-action="move"]');
+  const states = abilitiesFor(h.key).map(([k]) => heroAbilityStatus(h, k));
+  const cache = JSON.stringify([active, hp, recovery, expression, ui.heroAim, h.shieldUntil > G.time, states]);
+  if (cache === heroHudCache) return;
+  heroHudCache = cache;
+  move.firstElementChild.src = HERO_ART[h.key + '-' + expression];
+  move.disabled = !active || h.shieldUntil > G.time;
+  move.setAttribute('aria-pressed', ui.heroAim === 'move');
+  const meter = heroHud.querySelector('meter');
+  meter.value = hp;
+  meter.nextElementSibling.textContent = unit.alive ? `${hp} / ${unit.maxHp}` : `Returns in ${recovery}s`;
+  abilitiesFor(h.key).forEach(([k, a], i) => {
+    const b = heroHud.querySelector(`[data-action="${k}"]`), [label, reason] = states[i];
+    b.querySelector('span').textContent = label;
+    b.disabled = !active || !!reason;
+    b.setAttribute('aria-pressed', ui.heroAim === k);
+    b.title = `${a.name}. ${HERO_ABILITY_TEXT[k]}${reason ? ' ' + reason + '.' : ''}`;
+  });
+  const hint = heroHud.querySelector('.hero-hint');
+  hint.hidden = !ui.heroAim;
+  hint.textContent = AIM_TEXT[ui.heroAim] || '';
+}
+heroHud.addEventListener('click', e => {
+  const b = e.target.closest('[data-action]'), h = G?.hero;
+  if (!b || !h?.unit.alive || game.state !== 'play') return;
+  const k = b.dataset.action, prev = ui.heroAim;
+  closeMenus();
+  if (k === 'move' || HERO_ABILITIES[k].target !== 'self') {
+    if (prev !== k) ui.heroAim = k;
+  } else eIn.push({ do: 'heroCast', k });
+});
+function heroAimPoint(k, x, y) {
+  if (k === 'ashen-ward') {
+    groundAt(x, y, new V3());
+    const hit = ray.intersectObjects(towers.map(t => t.g), true)[0];
+    return hit ? towerOf(hit.object)?.src : null;
+  }
+  const p = groundAt(x, y, new V3());
+  return p && k === 'kindle' ? heroRoadSpot(G, p, 2) : p;
+}
+function finishHeroAim(x, y) {
+  const k = ui.heroAim, target = heroAimPoint(k, x, y);
+  if (!target) { msg(AIM_TEXT[k]); return; }
+  if (k === 'move') eIn.push({ do: 'heroMove', x: target.x, z: target.z });
+  else if (k === 'ashen-ward') eIn.push({ do: 'heroCast', k, targetTower: target.id });
+  else eIn.push({ do: 'heroCast', k, at: { x: target.x, z: target.z } });
+  closeMenus();
+}
+cvs.addEventListener('pointermove', e => {
+  const k = ui.heroAim;
+  if (!k || e.pointerType !== 'mouse') return;
+  const p = heroAimPoint(k, e.clientX, e.clientY);
+  spellRing.visible = !!p;
+  if (p) {
+    spellRing.position.set(p.x, groundY(p.x, p.z) + .13, p.z);
+    spellRing.scale.setScalar(k === 'move' ? .55 : HERO_ABILITIES[k].radius);
+    spellRing.material.color.setHex(k === 'move' ? 0x88bcff : 0xffab4a);
+  }
+});
+function heroCastFx({ k, at, eruptions }) {
+  heroEmoteUntil = G.time + 1.5;
+  const a = HERO_ABILITIES[k], col = a.hero === 'aldric' ? 0x83c5ff : 0xffa347;
+  const so = eView.get(G.hero?.unit);
+  if (so) so.heroCast = { clip: k, at: G.time, duration: HERO_CLIPS[a.hero][k].motion };
+  const c = new V3(at.x, groundY(at.x, at.z) + .2, at.z);
+  msg(a.name);
+  flashLight(c, 35, col);
+  for (const e of eruptions || []) {
+    const p = new V3(e.x, e.y + e.cy, e.z);
+    fxSparks(p, col, 16, 4);
+    flashLight(p, 35, col);
+  }
+}
+const heroFieldGeo = new THREE.RingGeometry(.91, 1, 48).rotateX(-Math.PI / 2);
+function heroField(color) {
+  const field = new THREE.Mesh(heroFieldGeo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .65, depthWrite: false }));
+  field.visible = false; scene.add(field); return field;
+}
+const bannerField = heroField(0x8ecaff), shieldField = heroField(0xc8e3ff);
+const kindleField = heroField(0xff781f), wardField = heroField(0xffbd50);
+const spectralGate = new THREE.Group();
+{
+  const stone = new THREE.MeshBasicMaterial({ color: 0x86c8ff, opacity: .52, transparent: true, depthWrite: false });
+  const light = new THREE.MeshBasicMaterial({ color: 0xc2eaff, opacity: .54, transparent: true, depthWrite: false });
+  for (const x of [-1.05, 1.05]) P(spectralGate, x, .95, 0, .28, 1.9, .32, 0, stone, false);
+  P(spectralGate, 0, 1.81, 0, 2.35, .29, .25, 0, stone, false);
+  for (const x of [-.72, -.36, 0, .36, .72]) P(spectralGate, x, .91, 0, .12, 1.75, .12, 0, light, false);
+  spectralGate.visible = false; scene.add(spectralGate);
+}
+const heroBanner = new THREE.Group();
+P(heroBanner, 0, .87, 0, .05, 1.74, .05, 0xc59452);
+P(heroBanner, .19, 1.58, 0, .44, .035, .045, 0xe2b35c);
+P(heroBanner, .19, 1.35, 0, .37, .44, .035, 0x455c91);
+heroBanner.visible = false; scene.add(heroBanner);
+function heroLooks(dt) {
+  const h = G.hero, a = HERO_ABILITIES, time = G.time;
+  const banner = h?.banner?.until > time ? h.banner : null;
+  const gate = h?.gate?.until > time ? h.gate : null;
+  const kindle = h?.kindle?.until > time ? h.kindle : null;
+  const ward = h?.ward?.until > time ? h.ward : null;
+  const placeField = (m, p, r) => {
+    m.visible = !!p;
+    if (p) { m.position.set(p.x, groundY(p.x, p.z) + .14, p.z); m.scale.setScalar(r); m.material.opacity = .5 + .14 * Math.sin(time * 6); }
+  };
+  placeField(bannerField, banner, a['rally-the-line'].radius);
+  placeField(shieldField, h?.shieldUntil > time ? h.unit : null, 1.1);
+  placeField(kindleField, kindle, a.kindle.radius);
+  placeField(wardField, ward?.tower, a['ashen-ward'].radius);
+  heroBanner.visible = !!banner;
+  if (banner) {
+    heroBanner.position.copy(bannerField.position);
+    heroBanner.rotation.y = -0.3 + Math.sin(time * 2) * .1;
+  }
+  spectralGate.visible = !!gate;
+  if (gate) {
+    spectralGate.position.set(gate.x, groundY(gate.x, gate.z), gate.z);
+    spectralGate.rotation.y = gate.heading;
+    spectralGate.scale.y = Math.min(1, (gate.until - time) * 5, (time + a['the-gate-holds'].duration - gate.until) * 7);
+  }
+  if (kindle && Math.random() < dt * 18) {
+    glow.spawn(kindle.x + rand(-.9, .9), kindleField.position.y, kindle.z + rand(-.9, .9), 0, rand(.4, 1.6), 0, .5, .13, FIRE1, 0, F_SPIN, 1, FIRE2);
+  }
+  if (ward && Math.random() < dt * 12) {
+    const { x, z } = ward.tower;
+    glow.spawn(x + rand(-.65, .65), wardField.position.y + .3, z + rand(-.65, .65), 0, rand(.6, 2), 0, .7, .11, FIRE1, 0, F_SPIN, 1, FIRE2);
+  }
 }
 
 // ================================================================ HUD
@@ -5243,6 +5390,7 @@ let last = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(.05, (now - last) / 1000); last = now;
+  renderPreview(dt);
   if (!wmapEl.hidden && WM.built) { wmUpdate(dt); renderer.render(WM.scene, WM.cam); return; } // world map open: the battle waits
   const sub = game.paused ? 0 : game.mode === 'play' ? game.speed : 1;
   for (let k = 0; k < sub; k++) updateGame(dt);
@@ -5252,7 +5400,6 @@ function frame(now) {
   updatePlayUI(dt);
   if (bogBubbles.length && Math.random() < dt * 4) { const b = pick(bogBubbles); glow.spawn(b.x + rand(-.3, .3), b.y, b.z + rand(-.3, .3), 0, .5, 0, .8, .07, 0x9ac05a, 0, F_SPIN, 1, 0x203010); }
   tutTick(dt);
-  renderPreview(dt);
   sky.position.copy(camera.position); stars.position.copy(camera.position);
   renderer.render(scene, camera);
 }
@@ -5280,15 +5427,15 @@ window.__muzzles = () => { const out = {}; for (const type of ['arrow', 'cannon'
   t.remove(); out[type] = r; } return out; };
 // stats of every attacking tower form, with the given War Council picks (none by default), plus upgrade and rank
 // costs: the engine's tower test compares against this
-window.__towerStats = (ids = []) => { SKILL_VIEW = { has: new Set(ids) }; const out = {};
+window.__towerStats = (ids = []) => { SKILL_VIEW = { skills: new Set(ids) }; const out = {};
   for (const type of ['arrow', 'cannon', 'frost', 'tesla', 'flame']) { const r = out[type] = { up: UPC[type], rank: {} };
     for (const L of [1, 2, 3]) r[L] = tStat(type, L);
     for (const k of ['a', 'b']) for (const R of [1, 2, 3]) { r[k + R] = specStat(type, k, R); if (R > 1) r.rank[k + R] = rankCost(type, k, R); } }
   out.sell = sellRate(); out.mortarDead = mortarDead(); SKILL_VIEW = null; return out; };
 // Barracks soldier stats for every level, specialisation and rank with the given War Council picks
-window.__barrStats = (ids = []) => { SKILL_VIEW = { has: new Set(ids) }; const out = {}; for (const k of [1, 2, 3]) out[k] = barrStat(k); for (const k of ['a', 'b']) for (const R of [1, 2, 3]) out[k + R] = barrStat(k, R); SKILL_VIEW = null; return out; };
+window.__barrStats = (ids = []) => { SKILL_VIEW = { skills: new Set(ids) }; const out = {}; for (const k of [1, 2, 3]) out[k] = barrStat(k); for (const k of ['a', 'b']) for (const R of [1, 2, 3]) out[k + R] = barrStat(k, R); SKILL_VIEW = null; return out; };
 // War Drum stats for every level, specialisation and rank with the given War Council picks
-window.__drumStats = (ids = []) => { SKILL_VIEW = { has: new Set(ids) }; const out = {}; for (const k of [1, 2, 3]) out[k] = drumStat(k); for (const k of ['a', 'b']) for (const R of [1, 2, 3]) out[k + R] = drumStat(k, R); SKILL_VIEW = null; return out; };
+window.__drumStats = (ids = []) => { SKILL_VIEW = { skills: new Set(ids) }; const out = {}; for (const k of [1, 2, 3]) out[k] = drumStat(k); for (const k of ['a', 'b']) for (const R of [1, 2, 3]) out[k + R] = drumStat(k, R); SKILL_VIEW = null; return out; };
 // plays one whole Watch mode battle on map i as fast as possible and reports how it ended: the simulator baseline
 window.__g = () => ({ gold: game.gold, wave: game.wave, towers: towers.map(t => t.type + t.lvl).join(' '), hp: game.hp, state: game.state, en: enemies.length });
 window.__step = n => { for (let i = 0; i < n; i++) { updateGame(1 / 30); updateDirector(1 / 30); updateSky(1 / 30); } return game.state + ' ' + game.wave + ' ' + game.hp; };

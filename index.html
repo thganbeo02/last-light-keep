@@ -35,6 +35,7 @@
   <p class="sub" id="esub">All 12 waves repelled.</p>
   <div class="stats" id="estats"></div>
   <div class="stars" id="estars"></div>
+  <div id="retryHeroes" class="hero-picks" role="group" aria-label="Hero for the next battle"></div>
   <div class="row"><button id="bnext" class="big primary">Next map</button><button id="bretry" class="big">Play again</button><button id="btitle" class="big">Title</button></div>
 </div></div>
 <div id="maps" class="ui" hidden><div class="card mp">
@@ -45,6 +46,7 @@
 <div id="tring" class="ui" hidden></div>
 <div id="ttip" class="ui" hidden></div>
 <div id="spells" class="ui" hidden aria-label="Spells"></div>
+<div id="heroHud" class="ui" hidden aria-label="Battle hero"></div>
 <div id="ctrl" class="ui" hidden>
   <button id="bsend"><span id="bsendl">Send wave 1</span><small id="bsends"></small><span id="bprev"></span></button>
   <button id="bspeed" class="sq" aria-label="Game speed">1&#xd7;</button>
@@ -79,11 +81,13 @@
     <div class="b-sect">Difficulty</div>
     <div class="b-diff" id="bDiff" role="group" aria-label="Difficulty"></div>
     <p class="b-note" id="bDiffNote"></p>
+    <div class="b-sect">Choose your hero</div>
+    <div id="briefHeroes" class="hero-picks" role="group" aria-label="Choose your hero"></div>
     <div class="b-foot"><span class="b-best" id="bBest"></span><button id="bStart" type="button">Start battle</button></div>
   </div>
 </div></div>
 <div id="book" class="ui" hidden><div class="card bk">
-  <div class="bkh"><h2>Keep Almanac</h2><div class="tabs"><button data-tab="towers" class="on" aria-pressed="true">Towers</button><button data-tab="enemies" aria-pressed="false">Enemies</button></div><button id="bkclose" aria-label="Close">&#x2715;</button></div>
+  <div class="bkh"><h2>Keep Almanac</h2><div class="tabs"><button data-tab="towers" class="on" aria-pressed="true">Towers</button><button data-tab="enemies" aria-pressed="false">Enemies</button><button data-tab="heroes" aria-pressed="false">Heroes</button></div><button id="bkclose" aria-label="Close">&#x2715;</button></div>
   <div class="bkb" id="bkb"></div><canvas id="bkcv" hidden></canvas>
 </div></div>
 <div id="notes" class="ui" hidden><div class="pn" role="dialog" aria-label="Patch notes">

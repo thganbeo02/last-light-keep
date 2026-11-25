@@ -3,8 +3,10 @@
 // what the renderer needs is in the events and in each enemy's position, heading and status timers.
 import { ED } from '../content/enemies.ts';
 import { ENEMY_CY } from '../content/enemy-dims.ts';
-import { lerpAngle } from './math.ts';
+import { HEROES } from '../content/heroes.ts';
 import { enemyCombat } from './combat.ts';
+import { burnFromWard, coalReward, heroBurnDamage, holdAtGate, isBurning, lanternLight } from './heroes.ts';
+import { lerpAngle } from './math.ts';
 import { smoothPath } from './map.ts';
 import { range } from './rng.ts';
 import { groundY, has, type Game } from './state.ts';
@@ -21,6 +23,7 @@ export interface Enemy {
   hp: number; maxHp: number; alive: boolean;
   // status timers, in seconds unless noted
   slow: number; slowF: number; freeze: number; stun: number; burn: number;
+  heroBurns?: number[]; wardBurnUntil?: number;
   sunder: number; brittle: number; iceBrittle: boolean; shockT: number; shockDmg: number;
   hex: number; markT: number; bleedT: number;
   // specials
@@ -64,11 +67,13 @@ export function spawnEnemy(g: Game, type: EnemyType, d = 0, path = 0): Enemy {
 }
 
 /** Damage after armour (phys) or magic resist (magic); true damage ignores both. pierce: share of the block ignored. */
-export function hurt(g: Game, e: Enemy, amt: number, kind: DamageKind = 'true', pierce = 0) {
+export function hurt(g: Game, e: Enemy, amt: number, kind: DamageKind = 'true', pierce = 0, tower?: Tower | null) {
   if (!e.alive) return;
+  burnFromWard(g, e, tower);
   if (kind === 'phys' && e.iceBrittle && e.freeze > 0) { pierce = Math.max(pierce, 0.5); e.iceBrittle = false; g.events.push({ t: 'shield', e }); }
   let block = (kind === 'phys' ? e.def.armor : kind === 'magic' ? e.def.mr : 0) * (e.sunder > 0 ? 0.5 : 1) * (1 - pierce);
-  if (block > 0 && e.burn > 0 && has(g, 'flame.scorch')) block *= 0.85;
+  if (kind === 'magic' && lanternLight(g, e)) block = Math.max(0, block - HEROES.corwin.resistLoss);
+  if (block > 0 && isBurning(g, e) && has(g, 'flame.scorch')) block *= 0.85;
   if (block > 0 && e.hex > 0 && has(g, 'drum.wither')) block = Math.max(0, block - 0.1);
   e.hp -= amt * (1 - block) * (e.brittle > 0 && e.slow > 0 ? 2 : 1) * (1 + (e.hex || 0)) * (e.markT > 0 ? 1.1 : 1);
   if (e.hp <= 0) killEnemy(g, e);
@@ -87,12 +92,13 @@ export function killEnemy(g: Game, e: Enemy) {
     g.events.push({ t: 'shatter', e });
     for (const o of g.enemies) if (o.alive && o !== e && centreDist2(o, e) < 2.25) hurt(g, o, e.maxHp * 0.3, 'magic');
   }
-  if (e.burn > 0 && has(g, 'flame.wild')) for (const o of g.enemies) if (o.alive && o !== e && !o.def.air && centreDist2(o, e) < 2.25) { o.burn = Math.max(o.burn, 2); hurt(g, o, 5, 'true'); }
-  let reward = killReward(g, e);
-  if (e.burn > 0 && has(g, 'flame.ash')) reward += 1;
+  if (isBurning(g, e) && has(g, 'flame.wild')) for (const o of g.enemies) if (o.alive && o !== e && !o.def.air && centreDist2(o, e) < 2.25) { o.burn = Math.max(o.burn, 2); hurt(g, o, 5, 'true'); }
+  const embers = coalReward(g, e);
+  let reward = killReward(g, e) + embers;
+  if (isBurning(g, e) && has(g, 'flame.ash')) reward += 1;
   if (e.hex > 0 && has(g, 'drum.soul')) { reward += 2; if (g.soulHeal < 10 && g.hp > 0) { g.soulHeal++; g.hp = Math.min(g.maxHp, g.hp + 1); } }
   g.gold += reward; g.earned += reward; g.defeated++;
-  g.events.push({ t: 'kill', e, reward });
+  g.events.push({ t: 'kill', e, reward, ...(embers ? { embers } : {}) });
 }
 
 export function reachCastle(g: Game, e: Enemy) {
@@ -131,20 +137,34 @@ export function updateEnemy(g: Game, e: Enemy, dt: number) {
       if (e.stompW <= 0) { e.stompW = 0; e.stompT = 12; const hit = near(); for (const t of hit) t.stunT = Math.max(t.stunT, 2); g.events.push({ t: 'stomp', e, towers: hit }); }
     } else if ((e.stompT -= dt) <= 0 && near().length) { e.stompW = 0.7; g.events.push({ t: 'stomping', e }); }
   }
-  const fighting = e.fighting = enemyCombat(g, e, dt);
-  const held = e.freeze > 0 || e.stun > 0 || e.plantT > 0 || e.stompW > 0 || fighting;
+  const disabled = e.freeze > 0 || e.stun > 0 || e.plantT > 0 || e.stompW > 0;
   const bogs = (g.def as { bog?: number[][] }).bog;
   const bog = bogs && !e.def.air && bogs.some(([a, b]) => e.d > a * P.len && e.d < b * P.len) ? 0.7 : 1;
-  e.d += (held ? 0 : e.def.speed * (e.slow > 0 ? e.slowF : 1) * bog) * dt;
-  if (e.d >= P.len - 0.3) { reachCastle(g, e); return; }
+  const step = e.def.speed * (e.slow > 0 ? e.slowF : 1) * bog * dt;
+  const hasGate = !!g.hero?.gate;
+  let atGate = hasGate && holdAtGate(g, e, 0, disabled);
+  e.fighting = atGate || enemyCombat(g, e, dt);
+  if (!disabled && !e.fighting) {
+    e.fighting = atGate = hasGate && holdAtGate(g, e, step, false);
+    if (!atGate) e.d += step;
+  }
+  if (!e.alive) return;
+  if (!atGate && e.d >= P.len - 0.3) { reachCastle(g, e); return; }
   place(g, e, dt);
   if (e.type === 'shaman') {
     e.healT -= dt;
     if (e.healT <= 0) {
-      e.healT = 2; let n = 0;
-      for (const o of g.enemies) if (o.alive && o !== e && o.hp < o.maxHp && !(o.burn > 0 && has(g, 'flame.ever')) && centreDist2(o, e) < 6.8) { o.hp = Math.min(o.maxHp, o.hp + o.maxHp * 0.08); n++; }
-      if (n) g.events.push({ t: 'heal', e, n });
+      e.healT = 2;
+      const healed: Enemy[] = [];
+      for (const o of g.enemies) {
+        if (!o.alive || o === e || o.hp >= o.maxHp || (isBurning(g, o) && has(g, 'flame.ever')) || lanternLight(g, o) || centreDist2(o, e) >= 6.8) continue;
+        o.hp = Math.min(o.maxHp, o.hp + o.maxHp * 0.08);
+        healed.push(o);
+      }
+      if (healed.length) g.events.push({ t: 'heal', e, healed });
     }
   }
   if (e.burn > 0) { e.burn -= dt; hurt(g, e, 7 * dt * g.dotMul, 'true'); }
+  const heroBurn = heroBurnDamage(g, e);
+  if (heroBurn) hurt(g, e, heroBurn * dt * g.dotMul, 'true');
 }

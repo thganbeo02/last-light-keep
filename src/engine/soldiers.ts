@@ -4,6 +4,7 @@
 import { BARR, SOL_FIRST, SOL_LAST, SOL_REGEN } from '../content/barracks.ts';
 import { ATK } from '../content/enemies.ts';
 import { hurt, type Enemy } from './enemies.ts';
+import { bannerHaste, heroBlocks, heroFell, protectSoldier } from './heroes.ts';
 import { lerpAngle } from './math.ts';
 import { W, H } from './map.ts';
 import { int, next, range } from './rng.ts';
@@ -30,7 +31,7 @@ export interface Soldier {
 }
 
 /** Soldier stats for a Barracks level (1–3) or specialisation (a Paladins, b Rangers) at a rank, with War Council picks. */
-export function barrStat(g: Game, k: BarrKey, rank = 1): BarrStat {
+export function barrStat(g: Pick<Game, 'skills'>, k: BarrKey, rank = 1): BarrStat {
   const b: BarrStat = { ...(BARR as Record<BarrKey, BarrStat>)[k] }, r = rank - 1;
   b.hp = Math.round(b.hp * Math.pow(1.2, r)); b.dmg = +(b.dmg * Math.pow(1.25, r)).toFixed(1); b.rad = +(b.rad + 0.2 * r).toFixed(1);
   if (b.holy) b.holy = Math.round(b.holy * Math.pow(1.25, r));
@@ -92,10 +93,10 @@ const soldierName = (g: Game) => {
 /** Soldier i's place around the rally point: n soldiers on a ring of .55. */
 export const slot = (s: Soldier) => { const r = s.host.rally, n = s.host.bs.n, a = s.i / n * Math.PI * 2 + 0.6, d = n > 1 ? 0.55 : 0; return { x: r.x + Math.cos(a) * d, z: r.z + Math.sin(a) * d }; };
 
-export function makeSoldier(g: Game, host: SoldierHost, i: number, atRally: boolean): Soldier {
+export function makeSoldier(g: Game, host: SoldierHost, i: number, atRally: boolean, name = soldierName(g)): Soldier {
   const st = host.bs;
   const s: Soldier = {
-    id: g.nextId++, host, i, type: st.unit, name: soldierName(g), st, hp: st.hp, maxHp: st.hp, alive: true, x: host.x, y: 0, z: host.z, heading: 0, want: null,
+    id: g.nextId++, host, i, type: st.unit, name, st, hp: st.hp, maxHp: st.hp, alive: true, x: host.x, y: 0, z: host.z, heading: 0, want: null,
     target: null, extra: null, engaged: null, scan: 0, cd: range(g.rng, 0, 0.4), calm: 0, inv: 0, saved: false, hits: 0, swings: 0,
     atk: null, fighting: false, aiming: false, hawkT: 1, ttl: null, cheer: 0,
   };
@@ -120,8 +121,13 @@ export function barracksTick(g: Game, t: Tower, dt: number) {
   for (let i = 0; i < t.bs!.n; i++) {
     const so = t.soldiers[i]; if (so && so.alive) continue;
     t.resp[i] = (t.resp[i] ?? t.bs!.resp) - dt;
-    if (t.resp[i]! <= 0) { t.resp[i] = undefined; t.soldiers[i] = makeSoldier(g, t as SoldierHost, i, false); }
+    if (t.resp[i]! <= 0) respawnSoldier(g, t, i, false);
   }
+}
+
+export function respawnSoldier(g: Game, t: Tower, i: number, atRally: boolean) {
+  t.resp[i] = undefined;
+  t.soldiers[i] = makeSoldier(g, t as SoldierHost, i, atRally);
 }
 
 /** Damage to a soldier after its armour or magic resist; Paladins with Divine Shield survive one killing blow. */
@@ -130,7 +136,7 @@ export function hurtSoldier(g: Game, s: Soldier, amt: number, kind: 'phys' | 'ma
   s.calm = 0;
   if (s.type === 'ranger' && kind === 'phys' && has(g, 'barracks.nimble') && next(g.rng) < 0.2) return; // Nimble: dodges
   const red = kind === 'magic' ? s.st.mr || 0 : kind === 'phys' ? s.st.armor : 0;
-  s.hp -= amt * (1 - red);
+  s.hp -= protectSoldier(g, s, amt * (1 - red));
   if (s.hp <= 0 && s.type === 'paladin' && has(g, 'barracks.shield') && !s.saved) { s.saved = true; s.hp = s.maxHp * 0.5; s.inv = 3; return; }
   if (s.hp <= 0) killSoldier(g, s);
 }
@@ -140,6 +146,7 @@ function killSoldier(g: Game, s: Soldier) {
   for (const o of [s.target, s.extra]) if (o && o.blocker === s) o.blocker = null;
   const tw = s.host as Partial<Tower>;
   if (tw.resp) tw.resp[s.i] = s.host.bs.resp;
+  heroFell(g, s);
   g.events.push({ t: 'soldierDown', s });
 }
 
@@ -156,7 +163,8 @@ function fanSpot(g: Game, s: Soldier, e: Enemy) {
 function strike(g: Game, s: Soldier, a: NonNullable<Soldier['atk']>) {
   const e = a.e, st = s.st; if (!e.alive) return;
   s.hits++; const was = e.alive;
-  hurt(g, e, st.dmg * (a.bash ? 0.6 : 1) * (has(g, 'drum.rally') && inDrum(g, s, 'a') ? 1.2 : 1), 'phys');
+  const tower = 'type' in s.host ? s.host as Tower : undefined;
+  hurt(g, e, st.dmg * (a.bash ? 0.6 : 1) * (has(g, 'drum.rally') && inDrum(g, s, 'a') ? 1.2 : 1), 'phys', 0, tower);
   if (a.bash && e.alive && e.type !== 'boss' && e.type !== 'gruk') e.d = Math.max(0, e.d - 0.15);
   if (was && !e.alive && s.type === 'paladin' && has(g, 'barracks.wind') && next(g.rng) < 0.2) s.hp = s.maxHp; // Second Wind
   if (st.holy && s.hits % (st.holyN || 4) === 0 && e.alive) { hurt(g, e, st.holy, 'true'); g.events.push({ t: 'holy', s, e }); }
@@ -166,6 +174,7 @@ const face = (s: Soldier, dx: number, dz: number) => { if (dx || dz) s.want = Ma
 
 export function updateSoldier(g: Game, s: Soldier, dt: number) {
   const st = s.st, r = s.host.rally;
+  const attackDt = dt * bannerHaste(g, s);
   if (s.ttl != null) { s.ttl -= dt; if (s.ttl <= 0) { for (const o of [s.target, s.extra]) if (o && o.blocker === s) o.blocker = null; s.alive = false; return; } } // militia go home
   s.calm += dt; if (s.inv > 0) s.inv -= dt;
   if (s.cheer > 0) s.cheer -= dt;
@@ -198,18 +207,18 @@ export function updateSoldier(g: Game, s: Soldier, dt: number) {
     const dx = e.x - s.x, dz = e.z - s.z, d = Math.hypot(dx, dz);
     if (st.ranged && (ow || e.def.air || d > 1)) { // Rangers shoot from their slot
       goal = slot(s); face(s, dx, dz); s.aiming = d < st.ranged + 0.5;
-      s.cd -= dt;
-      if (s.cd <= 0 && s.aiming) { s.cd = st.rate; fireArrow(g, { x: s.x, y: s.y + 1.1, z: s.z }, e, st.dmg * (has(g, 'drum.rally') && inDrum(g, s, 'a') ? 1.2 : 1), false, { pierce2: has(g, 'barracks.broad') }); }
+      s.cd -= attackDt;
+      if (s.cd <= 0 && s.aiming) { s.cd = st.rate; fireArrow(g, { x: s.x, y: s.y + 1.1, z: s.z }, e, st.dmg * (has(g, 'drum.rally') && inDrum(g, s, 'a') ? 1.2 : 1), false, { pierce2: has(g, 'barracks.broad') }, undefined, 'type' in s.host ? s.host as Tower : undefined); }
     } else if (d > 0.85) { goal = fanSpot(g, s, e); face(s, dx, dz); }
     else {
-      if (!e.blocker || !e.blocker.alive || e.blocker.target !== e) { if (e.blocker && e.blocker.extra === e) e.blocker.extra = null; e.blocker = s; }
+      if (!e.blocker || !e.blocker.alive || (e.blocker.target !== e && !heroBlocks(g, e.blocker, e))) { if (e.blocker && e.blocker.extra === e) e.blocker.extra = null; e.blocker = s; }
       if (!s.extra) for (const o of g.enemies) { // hold one more enemy that walks into it, if nobody else has it
-        if (o === e || !o.alive || o.def.air || !ATK_TYPES.has(o.type) || (o.blocker && o.blocker.alive && (o.blocker.target === o || o.blocker.extra === o))) continue;
+        if (o === e || !o.alive || o.def.air || !ATK_TYPES.has(o.type) || (o.blocker && o.blocker.alive && (o.blocker.target === o || o.blocker.extra === o || heroBlocks(g, o.blocker, o)))) continue;
         if ((o.x - s.x) ** 2 + (o.z - s.z) ** 2 < 0.81) { s.extra = o; o.blocker = s; break; }
       }
       face(s, dx, dz);
       if (s.engaged !== e) { s.engaged = e; if (has(g, 'barracks.spear')) s.cd = 0; } // First Strike
-      s.cd -= dt; s.fighting = true;
+      s.cd -= attackDt; s.fighting = true;
       if (s.cd <= 0 && !s.atk) { s.cd = st.rate; s.atk = { t: 0, hit: false, e, bash: !st.holy && s.type !== 'ranger' && s.swings % 3 === 2 }; s.swings++; }
       const f = fanSpot(g, s, e); if ((f.x - s.x) ** 2 + (f.z - s.z) ** 2 > 0.03) goal = f;
     }

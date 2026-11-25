@@ -12,7 +12,7 @@ export type DrumKey = 1 | 2 | 3 | SpecKey;
 /** haste: fire-rate boost; rad: radius; rngB: War Horn's range boost; hex: Hex Totem's extra damage taken */
 export interface DrumStat { haste: number; rad: number; rngB?: number; hex?: number }
 
-export function drumStat(g: Game, k: DrumKey, rank = 1): DrumStat {
+export function drumStat(g: Pick<Game, 'skills'>, k: DrumKey, rank = 1): DrumStat {
   const d: DrumStat = { ...(DRUM as Record<DrumKey, DrumStat>)[k] }, r = rank - 1;
   d.haste = +(d.haste + 0.05 * r).toFixed(2); d.rad = +(d.rad + 0.3 * r).toFixed(1);
   if (d.rngB) d.rngB = +(d.rngB + 0.05 * r).toFixed(2);
@@ -73,6 +73,22 @@ export function drumTick(g: Game, t: Tower, dt: number) {
   if (g.state !== 'play') return;
   const s = t.ds as DrumStat, r2 = s.rad * s.rad;
   const inR = (e: Game['enemies'][number]) => e.alive && !e.def.air && (e.x - t.x) ** 2 + (e.z - t.z) ** 2 <= r2;
-  if (has(g, 'drum.thund')) { t.thT = (t.thT ?? 12) - dt; if (t.thT <= 0) { t.thT = 12; for (const e of g.enemies) if (inR(e)) e.stun = Math.max(e.stun, 0.5); } }
-  if (t.spec === 'a' && has(g, 'drum.charge')) { t.chT = (t.chT ?? 20) - dt; if (t.chT <= 0) { t.chT = 20; for (const e of g.enemies) if (inR(e) && e.type !== 'boss' && e.type !== 'gruk') e.d = Math.max(0, e.d - 1); } }
+  if (has(g, 'drum.thund')) {
+    t.thT = (t.thT ?? 12) - dt;
+    if (t.thT <= 0) {
+      t.thT = 12;
+      const targets = g.enemies.filter(inR);
+      for (const e of targets) e.stun = Math.max(e.stun, 0.5);
+      if (targets.length) g.events.push({ t: 'drumThunder', tower: t });
+    }
+  }
+  if (t.spec === 'a' && has(g, 'drum.charge')) {
+    t.chT = (t.chT ?? 20) - dt;
+    if (t.chT <= 0) {
+      t.chT = 20;
+      const pushed = g.enemies.filter(e => inR(e) && e.type !== 'boss' && e.type !== 'gruk');
+      for (const e of pushed) e.d = Math.max(0, e.d - 1);
+      g.events.push({ t: 'drumCharge', tower: t, pushed });
+    }
+  }
 }
