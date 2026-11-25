@@ -53,18 +53,18 @@
     <button id="bpause" class="sq" aria-label="Pause"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg></button>
   </div>
 </div>
-<div id="pausec" class="ui" hidden><div class="pz" role="dialog" aria-modal="true" aria-labelledby="pzName">
-  <div class="pz-k">Paused</div>
-  <h2 id="pzName">Millbrook Fields</h2>
-  <div class="pz-meta" id="pzMeta"></div>
-  <div class="pz-st" id="pzStats"></div>
+<div id="pausec" class="ui" hidden><div class="pz" role="dialog" aria-modal="true" aria-labelledby="pzTitle" aria-describedby="pzName">
+  <header class="pz-head">
+    <h2 id="pzTitle">Paused</h2>
+    <p id="pzName"></p>
+  </header>
   <div class="pz-b">
-    <button id="bresume" type="button" class="pz-go">Resume</button>
+    <button id="bresume" type="button" class="pz-go"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4l13 8-13 8z"/></svg>Resume</button>
     <button id="brestart" type="button">Restart</button>
-    <button id="bbook2" type="button">Almanac</button>
-    <button id="bquit" type="button">Quit</button>
+    <button id="bquit" type="button">World map</button>
   </div>
-  <p class="pz-n">Space or Esc resumes. Restart begins this level again with the same hero.</p>
+  <button id="bbook2" type="button" class="pz-book">Almanac</button>
+  <p class="pz-n">Space or Esc to resume</p>
 </div></div>
 <button id="bmenu" class="ui" hidden>Menu</button>
 <div id="einfo" class="ui card" hidden>

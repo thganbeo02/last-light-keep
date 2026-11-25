@@ -2,6 +2,7 @@
 
 ## 2026-11-25 — 3.3 Captain and Coal
 
+- Replaced the pause screen with the compact Parchment menu and fixed its overlay sticking on the world map. Checked Resume, Restart, Almanac, and World map in Chrome, including a 320 px viewport check. All 123 tests, the TypeScript check, the single-file build, and the Git whitespace check passed.
 - Added Aldric Vane and Corwin Ashguard as pre-battle and replay picks, with HUD abilities, animated voxel rigs, and eight playable Almanac clips each. Hero movement cuts across clear terrain and interpolates between engine ticks.
 - Restored War Drum ability effects and per-target Shaman heal sparkles. The UI and engine now read the same balance data from `src/content/`.
 - Verified with `npm test` (120 tests), `npm run typecheck`, `npm run build`, and `git diff --check`. Chrome verified Corwin’s eight clips, playback controls, movement, and Kindle. Watch benchmarks match the pre-release engine on all seven maps. River Crossing, Highland Pass, and Ember Crater retain their existing gaps against the 3.2 recording.

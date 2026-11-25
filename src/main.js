@@ -4157,21 +4157,16 @@ function sendWave(early) {
 function togglePause() {
   if (game.mode !== 'play' || game.state !== 'play') return;
   game.paused = !game.paused;
-  if (game.paused) { closeMenus(); pauseCache = ''; }
+  if (game.paused) closeMenus();
 }
-// the pause card: level, difficulty and where the battle stands, with Resume, Restart, Almanac and Quit
+// sync the pause card when a battle or overlay changes
 const pauseEl = $('pausec');
-let pauseCache = '';
 function updatePauseCard() {
   const show = game.mode === 'play' && game.state === 'play' && game.paused && !$('ctrl').hidden && bookEl.hidden && $('skills').hidden;
-  if (pauseEl.hidden === !show && (!show || pauseCache)) return;
+  if (pauseEl.hidden === !show) return;
   pauseEl.hidden = !show;
-  if (!show) { pauseCache = ''; return; }
-  const L = camp.level != null ? LEVELS[camp.level] : null, D = DIFFS[game.diffI ?? 1] || DIFFS[1];
+  if (!show) return;
   $('pzName').textContent = MAP.name;
-  $('pzMeta').innerHTML = `${L ? `<span>Level ${L.id}</span>` : ''}<span>${crestSVG(DIFFS.indexOf(D), 18)} ${D.name}</span>${G?.hero ? `<span>${HEROES[G.hero.key].name}</span>` : ''}`;
-  $('pzStats').innerHTML = [['Wave', `${game.wave}/${MAP.waves}`], ['Castle', `${Math.max(0, Math.ceil(game.hp))}/${game.maxHp}`], ['Gold', game.gold], ['Defeated', game.defeated]].map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('');
-  pauseCache = 'shown';
   $('bresume').focus({ preventScroll: true });
 }
 $('bresume').addEventListener('click', togglePause);
@@ -4180,7 +4175,7 @@ $('bsend').addEventListener('click', () => sendWave(true));
 $('bspeed').addEventListener('click', () => { game.speed = game.speed % 3 + 1; });
 $('bpause').addEventListener('click', togglePause);
 $('bview').addEventListener('click', () => camHome(false));
-$('bquit').addEventListener('click', () => fadeTo(() => { resetGame('auto', mapIdx); if (game.mode === 'play' || camp.level != null) showWorld(); else showTitle(); }));
+$('bquit').addEventListener('click', () => fadeTo(() => { resetGame('auto', mapIdx); showWorld(); }));
 let ctrlCache = '';
 function updateCtrl() {
   const n = game.wave + 1, spawning = game.spawnQ.length > 0, done = game.wave >= MAP.waves;
@@ -4543,6 +4538,7 @@ function hideWorld() { wmapEl.hidden = true; document.body.classList.remove('wm'
 function showWorld() {
   $('title').hidden = true; hideEnd(); $('maps').hidden = true; $('brief').hidden = true; $('ctrl').hidden = true; $('bmenu').hidden = true;
   $('heroHud').hidden = true; $('spells').hidden = true; // the battle loop that hides them pauses while the map is open
+  updatePauseCard();
   if (!WM.built) { const t0 = performance.now(); wmBuild(); WM.buildMs = Math.round(performance.now() - t0); }
   wmRefresh(); wmapEl.hidden = false; document.body.classList.add('wm');
   { const s = loadSave(), g = gateTier(s); if (s.tierSeen == null) { s.tierSeen = g; writeSave(s); } else if (g > s.tierSeen) { s.tierSeen = g; writeSave(s); setTimeout(() => { wToast(UNLOCKS[g].note); clearTimeout(wToastT); wToastT = setTimeout(() => $('wtoast').hidden = true, 5000); }, 600); } }
