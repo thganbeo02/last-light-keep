@@ -10,12 +10,10 @@
 </head>
 <body>
 <div id="hud">
-  <div class="t" id="hmap">RIVER CROSSING</div>
-  <div class="r"><span>Wave</span><b id="hw">1</b></div>
-  <div class="r"><span>Gold</span><b id="hg">0</b></div>
-  <div class="r"><span>Castle</span><b id="hh">100</b></div>
-  <div class="bar"><i id="hb"></i></div>
-  <div class="r"><span>Defeated</span><b id="hd">0</b></div>
+  <div class="t" id="hmap">River Crossing</div>
+  <div class="hs"><div><span>Wave</span><b id="hw">1</b></div><div><span>Gold</span><b id="hg" class="g">0</b></div><div><span>Castle</span><b id="hh">100</b></div></div>
+  <div class="bar" role="img" id="hbar" aria-label="Castle health"><i id="hb"></i></div>
+  <div class="hf"><span>Defeated <b id="hd">0</b></span><span id="hroad"></span></div>
   <div id="hm"></div>
 </div>
 <div id="fade"></div>
@@ -49,12 +47,25 @@
 <div id="heroHud" class="ui" hidden aria-label="Battle hero"></div>
 <div id="ctrl" class="ui" hidden>
   <button id="bsend"><span id="bsendl">Send wave 1</span><small id="bsends"></small><span id="bprev"></span></button>
-  <button id="bspeed" class="sq" aria-label="Game speed">1&#xd7;</button>
-  <button id="bpause" class="sq" aria-label="Pause">&#10074;&#10074;</button>
-  <button id="bview" class="sq" aria-label="Reset camera">View</button>
-  <button id="bbook2" class="sq" aria-label="Almanac">Book</button>
-  <button id="bquit" class="sq" aria-label="Quit to the world map">Quit</button>
+  <div class="tr">
+    <button id="bspeed" class="sq" aria-label="Game speed">1&#xd7;</button>
+    <button id="bview" class="sq" aria-label="Reset camera" title="Reset camera"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/><circle cx="12" cy="12" r="3"/></svg></button>
+    <button id="bpause" class="sq" aria-label="Pause"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg></button>
+  </div>
 </div>
+<div id="pausec" class="ui" hidden><div class="pz" role="dialog" aria-modal="true" aria-labelledby="pzName">
+  <div class="pz-k">Paused</div>
+  <h2 id="pzName">Millbrook Fields</h2>
+  <div class="pz-meta" id="pzMeta"></div>
+  <div class="pz-st" id="pzStats"></div>
+  <div class="pz-b">
+    <button id="bresume" type="button" class="pz-go">Resume</button>
+    <button id="brestart" type="button">Restart</button>
+    <button id="bbook2" type="button">Almanac</button>
+    <button id="bquit" type="button">Quit</button>
+  </div>
+  <p class="pz-n">Space or Esc resumes. Restart begins this level again with the same hero.</p>
+</div></div>
 <button id="bmenu" class="ui" hidden>Menu</button>
 <div id="einfo" class="ui card" hidden>
   <div class="ph"><i id="edot"></i><b id="ename"></b><button id="eclose" aria-label="Close">&#x2715;</button></div>

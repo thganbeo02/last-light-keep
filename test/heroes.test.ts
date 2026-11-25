@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { HERO_ABILITIES as AB, HEROES, HERO_RECOVERY, HERO_REGEN, HERO_SPEED } from '../src/content/heroes.ts';
 import { hurt, killReward, place, spawnEnemy } from '../src/engine/enemies.ts';
 import { DT, tick, type Input } from '../src/engine/game.ts';
-import { heroRoadSpot, isBurning } from '../src/engine/heroes.ts';
+import { heroMoveSpot, heroRoadSpot, isBurning } from '../src/engine/heroes.ts';
 import { gx2w, gz2w, TILE, W } from '../src/engine/map.ts';
 import { fireArrow } from '../src/engine/projectiles.ts';
 import { hurtSoldier } from '../src/engine/soldiers.ts';
@@ -230,5 +230,16 @@ describe('battle heroes', () => {
     const d = boss.d;
     tick(g);
     expect(boss.d).toBe(d);
+  });
+
+  it('a move order on blocked ground walks to the nearest walkable tile', () => {
+    const g = battle('aldric'), h = g.hero!;
+    const i = g.map.tiles.findIndex((t, k) => t !== TILE.grass && t !== TILE.road && t !== TILE.bridge && !!heroMoveSpot(g, { x: gx2w(k % W), z: gz2w(Math.floor(k / W)) }));
+    expect(i).toBeGreaterThanOrEqual(0);
+    const at = { x: gx2w(i % W), z: gz2w(Math.floor(i / W)) }, to = heroMoveSpot(g, at)!;
+    expect(Math.hypot(to.x - at.x, to.z - at.z)).toBeLessThanOrEqual(2.5);
+    tick(g, [{ do: 'heroMove', x: at.x, z: at.z }]);
+    for (let k = 0; k < 900 && h.route.length; k++) tick(g);
+    expect(h.unit.x).toBeCloseTo(to.x); expect(h.unit.z).toBeCloseTo(to.z);
   });
 });

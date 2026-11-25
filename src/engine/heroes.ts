@@ -83,10 +83,26 @@ function clearSegment(from: Vec2, to: Vec2, walkable: (tile: number) => boolean)
   return true;
 }
 
+const isWalkable = (g: Game, i: number) => i >= 0 && i < W * H && (g.map.tiles[i] === TILE.grass || g.map.tiles[i] === TILE.road || g.map.tiles[i] === TILE.bridge);
+
+/** A tap on a tree, plot or water snaps to the centre of the nearest walkable tile within 2.5 tiles. */
+export function heroMoveSpot(g: Game, at: Vec2): Vec2 | null {
+  const t = tileAt(at);
+  if (t >= 0 && isWalkable(g, t)) return { x: at.x, z: at.z };
+  const cx = Math.floor(at.x + W / 2), cz = Math.floor(at.z + H / 2);
+  let best: Vec2 | null = null, bd = 2.5 * 2.5;
+  for (let z = cz - 3; z <= cz + 3; z++) for (let x = cx - 3; x <= cx + 3; x++) {
+    if (x < 0 || z < 0 || x >= W || z >= H || !isWalkable(g, z * W + x)) continue;
+    const p = { x: gx2w(x), z: gz2w(z) }, d = dist2(p, at);
+    if (d < bd) { bd = d; best = p; }
+  }
+  return best;
+}
+
 /** Find a walkable route once, when the player gives a movement order. */
 function routeTo(g: Game, from: Vec2, to: Vec2): Vec2[] | null {
   const start = tileAt(from), end = tileAt(to);
-  const walkable = (i: number) => i >= 0 && i < W * H && (g.map.tiles[i] === TILE.grass || g.map.tiles[i] === TILE.road || g.map.tiles[i] === TILE.bridge);
+  const walkable = (i: number) => isWalkable(g, i);
   if (start < 0 || !walkable(end)) return null;
   if (clearSegment(from, to, walkable)) return [to];
   const prev = new Int16Array(W * H).fill(-1), queue = [start];
@@ -126,7 +142,8 @@ export function moveHero(g: Game, { x, z }: Vec2): 'shield' | 'route' | null {
   const h = g.hero;
   if (!h?.unit.alive) return 'route';
   if (h.shieldUntil > g.time) return 'shield';
-  const route = routeTo(g, h.unit, { x, z });
+  const to = Number.isFinite(x) && Number.isFinite(z) ? heroMoveSpot(g, { x, z }) : null;
+  const route = to && routeTo(g, h.unit, to);
   if (!route) return 'route';
   h.route = route;
   release(h);

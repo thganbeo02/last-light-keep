@@ -9,7 +9,7 @@ import { spellsFor } from './engine/spells.ts';
 import { rankCost, upCost, mortarPierce, overloadCap, tStat as eTStat, specStat as eSpecStat, skMod as eSkMod, mortarDead as eMortarDead, sellRate as eSellRate } from './engine/towers.ts';
 import { tick as eTick, DT as EDT } from './engine/game.ts';
 import { makeWatchGame } from './engine/ai.ts';
-import { heroRoadSpot, isBurning } from './engine/heroes.ts';
+import { heroMoveSpot, heroRoadSpot, isBurning } from './engine/heroes.ts';
 import { MAPS, LIQ } from './content/maps.ts';
 import { ED, ATK, ATKX } from './content/enemies.ts';
 import { TT, DTYPE, DNAME, SPEC, UPC } from './content/towers.ts';
@@ -3175,7 +3175,7 @@ const shardMat = ME(0x9ff0ff, 1.6);
 
 // ================================================================ game state / waves
 const game = { mode: 'auto', speed: 1, paused: false, earned: 0, built: 0, countdown: 25, clearPaid: true, time: 0, wave: 0, gold: 0, hp: 100, maxHp: 100, defeated: 0, state: 'play', stateT: 0, spawnQ: [], spawnT: 0, sinceSpawn: 0, waveGap: 0, diff: 1, dotMul: 1, aiT: 0, lastBuild: null, lastBuildT: -99 };
-const hud = { w: document.getElementById('hw'), g: document.getElementById('hg'), h: document.getElementById('hh'), b: document.getElementById('hb'), d: document.getElementById('hd'), m: document.getElementById('hm') };
+const hud = { w: document.getElementById('hw'), g: document.getElementById('hg'), h: document.getElementById('hh'), b: document.getElementById('hb'), bar: document.getElementById('hbar'), d: document.getElementById('hd'), road: document.getElementById('hroad'), m: document.getElementById('hm') };
 let msgT = 0;
 function msg(s) { hud.m.textContent = s; msgT = 5; }
 const waveCounts = n => { const o = {}; for (const [k, [st, b, g]] of Object.entries(MAP.units)) o[k] = n >= st ? Math.round(b + g * (n - st + 1)) : 0; o.boss = MAP.bosses[n] || 0; return o; };
@@ -3487,7 +3487,7 @@ function resetGame(mode, idx) {
   game.maxHp = 100 + (skH('kingdom.walls') ? 10 : 0); game.hp = game.maxHp;
   game.castleP = smoothPath(PATHS[0], PATHS[0].len - .4, new V3());
   spotsDirty = true;
-  $('hmap').textContent = MAP.name.toUpperCase();
+  $('hmap').textContent = (game.mode === 'play' && camp.level != null && LEVELS[camp.level] ? LEVELS[camp.level].id + ' ' : '') + MAP.name; hudCache = '';
   game.spells = game.mode === 'play' ? spellsFor(camp.level ?? 0, !!loadSave().dev) : []; game.scd = {}; game.spellUsed = false; renderSpells();
   engineStart();
   if (game.mode === 'play') { camHome(true); msg(`${MAP.name}: build towers, then send wave 1`); return; }
@@ -3722,7 +3722,7 @@ function camHome(snap) {
 }
 const keys = new Set();
 function updatePlayerCam(dt) {
-  // keyboard: WASD / arrows pan, Q/E rotate, +/- zoom
+  // keyboard: WASD / arrows pan, Z/X rotate (Q/E too in Watch mode), +/- zoom. With a hero in battle, Q, W and E are its abilities.
   if (keys.size) {
     const sp = pc.dd * .9 * dt, c = Math.cos(pc.yaw), s = Math.sin(pc.yaw);
     let fx = 0, fz = 0;
@@ -3731,8 +3731,8 @@ function updatePlayerCam(dt) {
     if (keys.has('KeyA') || keys.has('ArrowLeft')) fx -= 1;
     if (keys.has('KeyD') || keys.has('ArrowRight')) fx += 1;
     pc.tt.x += (c * fx + s * fz) * sp; pc.tt.z += (-s * fx + c * fz) * sp;
-    if (keys.has('KeyQ')) pc.yy += 1.6 * dt;
-    if (keys.has('KeyE')) pc.yy -= 1.6 * dt;
+    if (keys.has('KeyQ') || keys.has('KeyZ')) pc.yy += 1.6 * dt;
+    if (keys.has('KeyE') || keys.has('KeyX')) pc.yy -= 1.6 * dt;
     if (keys.has('Equal') || keys.has('NumpadAdd')) pc.dd *= Math.exp(-1.5 * dt);
     if (keys.has('Minus') || keys.has('NumpadSubtract')) pc.dd *= Math.exp(1.5 * dt);
   }
@@ -3805,14 +3805,14 @@ cvs.addEventListener('wheel', e => {
   const f = pc.dd / before;
   if (f < 1 && groundAt(e.clientX, e.clientY, _ga)) { pc.tt.x += (_ga.x - pc.tt.x) * (1 - f); pc.tt.z += (_ga.z - pc.tt.z) * (1 - f); }
 }, { passive: false });
-const CAM_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyQ', 'KeyE', 'Equal', 'Minus', 'NumpadAdd', 'NumpadSubtract'];
+const CAM_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyQ', 'KeyE', 'KeyZ', 'KeyX', 'Equal', 'Minus', 'NumpadAdd', 'NumpadSubtract'];
 addEventListener('keydown', e => {
   if (!$('book').hidden) { if (e.code === 'Escape') closeBook(); return; }
   if (!$('brief').hidden) { if (e.code === 'Escape') $('brief').hidden = true; return; }
   if (game.mode !== 'play') return;
-  if (CAM_KEYS.includes(e.code)) { keys.add(e.code); e.preventDefault(); }
+  if (CAM_KEYS.includes(e.code) && !(G?.hero && HERO_KEYS.includes(e.code))) { keys.add(e.code); e.preventDefault(); }
   if (e.code === 'Space' && !(e.target instanceof HTMLButtonElement)) { e.preventDefault(); togglePause(); }
-  if (e.code === 'Escape') closeMenus();
+  if (e.code === 'Escape') { if (game.paused && !pauseEl.hidden) togglePause(); else closeMenus(); }
 });
 addEventListener('keyup', e => keys.delete(e.code));
 addEventListener('blur', () => keys.clear());
@@ -3921,6 +3921,7 @@ function handleTap(x, y, type) {
     return;
   }
   const en = pickEnemy(x, y), sp = pickSoldier(x, y);
+  if (sp && G.hero && sp.so.src === G.hero.unit) { pickHeroAction('move'); return; } // tap the hero, then the ground, to move
   if (sp && en) { _sp.copy(en.center).project(camera); const de = Math.hypot((_sp.x + 1) / 2 * innerWidth - x, (1 - _sp.y) / 2 * innerHeight - y); if (sp.d < de) { selectSoldier(sp.so); return; } }
   else if (sp) { selectSoldier(sp.so); return; }
   if (en) { selectEnemy(en); return; }
@@ -4155,8 +4156,26 @@ function sendWave(early) {
 }
 function togglePause() {
   if (game.mode !== 'play' || game.state !== 'play') return;
-  game.paused = !game.paused; msg(game.paused ? 'Paused' : 'Resumed');
+  game.paused = !game.paused;
+  if (game.paused) { closeMenus(); pauseCache = ''; }
 }
+// the pause card: level, difficulty and where the battle stands, with Resume, Restart, Almanac and Quit
+const pauseEl = $('pausec');
+let pauseCache = '';
+function updatePauseCard() {
+  const show = game.mode === 'play' && game.state === 'play' && game.paused && !$('ctrl').hidden && bookEl.hidden && $('skills').hidden;
+  if (pauseEl.hidden === !show && (!show || pauseCache)) return;
+  pauseEl.hidden = !show;
+  if (!show) { pauseCache = ''; return; }
+  const L = camp.level != null ? LEVELS[camp.level] : null, D = DIFFS[game.diffI ?? 1] || DIFFS[1];
+  $('pzName').textContent = MAP.name;
+  $('pzMeta').innerHTML = `${L ? `<span>Level ${L.id}</span>` : ''}<span>${crestSVG(DIFFS.indexOf(D), 18)} ${D.name}</span>${G?.hero ? `<span>${HEROES[G.hero.key].name}</span>` : ''}`;
+  $('pzStats').innerHTML = [['Wave', `${game.wave}/${MAP.waves}`], ['Castle', `${Math.max(0, Math.ceil(game.hp))}/${game.maxHp}`], ['Gold', game.gold], ['Defeated', game.defeated]].map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('');
+  pauseCache = 'shown';
+  $('bresume').focus({ preventScroll: true });
+}
+$('bresume').addEventListener('click', togglePause);
+$('brestart').addEventListener('click', () => startPlay(mapIdx));
 $('bsend').addEventListener('click', () => sendWave(true));
 $('bspeed').addEventListener('click', () => { game.speed = game.speed % 3 + 1; });
 $('bpause').addEventListener('click', togglePause);
@@ -4176,10 +4195,10 @@ function updateCtrl() {
     $('bsendl').textContent = n === 1 ? 'Start wave 1' : `Send wave ${n}`;
     $('bsends').textContent = n === 1 ? 'Build your defences, then start' : `+${bonus} gold early · starts in ${cd} s`;
     const wc = waveCounts(n);
-    $('bprev').innerHTML = Object.entries(wc).filter(([, c]) => c).map(([k, c]) => `<span><i style="background:${DOT[k]}"></i>${c} ${NAMES[k][c > 1 ? 1 : 0]}</span>`).join('');
+    $('bprev').innerHTML = Object.entries(wc).filter(([, c]) => c).map(([k, c]) => `<span title="${c} ${NAMES[k][c > 1 ? 1 : 0]}">${ALM_ART['e:' + k] ? `<img src="${ALM_ART['e:' + k]}" alt="">` : `<i style="background:${DOT[k]}"></i>`}×${c}</span>`).join('');
   }
   $('bspeed').textContent = `${game.speed}×`;
-  $('bpause').innerHTML = game.paused ? '&#9654;' : '&#10074;&#10074;';
+  $('bpause').innerHTML = game.paused ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4l13 8-13 8z"/></svg>' : '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>';
   $('bpause').setAttribute('aria-label', game.paused ? 'Resume' : 'Pause');
 }
 
@@ -5149,6 +5168,7 @@ function updatePlayUI(dt) {
   if (game.mode === 'play') updateCtrl();
   updateSpellBar();
   updateHeroHUD();
+  updatePauseCard();
 }
 
 // ================================================================ hero controls and effects
@@ -5181,7 +5201,7 @@ function renderHeroBook(key) {
     ${abilitiesFor(key).map(([k, a]) => `<div><img src="${HERO_ART['ab-' + k]}" alt=""><div><dt>${a.name}${a.cd ? ` <small>${a.cd} s recharge</small>` : ''}</dt><dd>${HERO_ABILITY_TEXT[k]}</dd></div></div>`).join('')}</dl></div></section>`;
   showHeroPreview(key);
 }
-const HERO_KEYS = ['Digit4', 'Digit5', 'Digit6'];
+const HERO_KEYS = ['KeyQ', 'KeyW', 'KeyE'], HERO_KEY_LABEL = ['Q', 'W', 'E'];
 const heroPortrait = key => HERO_ART[key + '-determined'];
 function makeHeroHUD(key) {
   hudHeroKey = key;
@@ -5192,7 +5212,7 @@ function makeHeroHUD(key) {
   heroHud.innerHTML = `<div class="hh-top"><button type="button" data-action="move" class="hh-por" aria-label="Move ${h.name}" title="Move ${h.name}: tap, then tap walkable ground"><img alt="" src="${heroPortrait(key)}" draggable="false"><span class="hh-t"></span></button>
     <div class="hh-id"><div class="hh-nm"><b>${h.name}</b><small>${h.title.replace(/^The /, '')}</small></div>
     <div class="hh-hp"><i role="img"><i></i></i><span></span></div></div></div>
-    <div class="hh-ab">${abilitiesFor(key).map(([k, a], i) => `<div><button type="button" class="hab" data-action="${k}"><img alt="" src="${HERO_ART['ab-' + k]}" draggable="false"><span class="hab-t"></span><kbd>${i + 4}</kbd></button><small>${HERO_ACTION_LABEL[k]}</small></div>`).join('')}</div>
+    <div class="hh-ab">${abilitiesFor(key).map(([k, a], i) => `<div><button type="button" class="hab" data-action="${k}"><img alt="" src="${HERO_ART['ab-' + k]}" draggable="false"><span class="hab-t"></span><kbd>${HERO_KEY_LABEL[i]}</kbd></button><small>${HERO_ACTION_LABEL[k]}</small></div>`).join('')}</div>
     <div class="hh-aim" role="status" hidden><img alt=""><span></span><button type="button" data-cancel>Cancel</button></div>`;
 }
 /** One ability's look: state (ready, cool, charge, need, spent), the number or word on it, the sweep or charge share, and why it can't be cast. */
@@ -5243,7 +5263,7 @@ function updateHeroHUD() {
     b.querySelector('.hab-t').textContent = s.badge || s.text;
     b.disabled = !active || s.state !== 'ready';
     b.setAttribute('aria-pressed', ui.heroAim === k);
-    b.setAttribute('aria-label', `${a.name}, key ${i + 4}. ${s.why || 'Ready'}.`);
+    b.setAttribute('aria-label', `${a.name}, key ${HERO_KEY_LABEL[i]}. ${s.why || 'Ready'}.`);
   });
   const aim = heroHud.querySelector('.hh-aim');
   aim.hidden = !ui.heroAim;
@@ -5274,7 +5294,7 @@ heroHud.addEventListener('click', e => {
 function heroTip(b) {
   const h = G?.hero, k = b.dataset.action; if (!h || !HERO_ABILITIES[k]) return;
   const a = HERO_ABILITIES[k], s = heroAbilityStatus(h, k), i = abilitiesFor(h.key).findIndex(([q]) => q === k);
-  const foot = (a.cd ? `Recharges in ${a.cd} s` : k === 'the-gate-holds' ? `Charges from ${a.hits} hits taken` : 'Once per battle') + ` · key ${i + 4}`;
+  const foot = (a.cd ? `Recharges in ${a.cd} s` : k === 'the-gate-holds' ? `Charges from ${a.hits} hits taken` : 'Once per battle') + ` · key ${HERO_KEY_LABEL[i]}`;
   tipEl.innerHTML = tipHTML({ title: a.name, col: a.hero === 'aldric' ? '#24365a' : '#8a3a08', sub: s.why || 'Ready', body: HERO_ABILITY_TEXT[k], foot }); tipEl.hidden = false;
   const r = b.getBoundingClientRect(); placeTip(r.left + r.width / 2, r.top, 10);
 }
@@ -5292,7 +5312,7 @@ function heroAimPoint(k, x, y) {
     return hit ? towerOf(hit.object)?.src : null;
   }
   const p = groundAt(x, y, new V3());
-  return p && k === 'kindle' ? heroRoadSpot(G, p, 2) : p;
+  return p && (k === 'kindle' ? heroRoadSpot(G, p, 2) : heroMoveSpot(G, p));
 }
 function finishHeroAim(x, y) {
   const k = ui.heroAim, target = heroAimPoint(k, x, y);
@@ -5384,15 +5404,18 @@ function heroLooks(dt) {
 // ================================================================ HUD
 let hudCache = '';
 function updateHUD(dt) {
-  const s = `${game.wave}|${game.gold}|${game.hp}|${game.defeated}`;
+  const road = G ? G.enemies.reduce((n, e) => n + (e.alive ? 1 : 0), 0) : 0;
+  const s = `${game.wave}|${game.gold}|${game.hp}|${game.defeated}|${road}`;
   if (s !== hudCache) {
     hudCache = s;
-    hud.w.textContent = `${game.wave} / ${MAP.waves}`;
+    hud.w.innerHTML = `${game.wave}<small>/${MAP.waves}</small>`;
     hud.g.textContent = game.gold;
-    hud.h.textContent = game.hp > 0 ? `${Math.ceil(game.hp)} / ${game.maxHp}` : 'Fallen';
+    hud.h.textContent = game.hp > 0 ? Math.ceil(game.hp) : 'Fallen';
     hud.b.style.width = (game.hp / game.maxHp * 100) + '%';
     hud.b.style.background = game.hp > 60 ? '#5fd36a' : game.hp > 30 ? '#f2c94c' : '#eb5757';
+    hud.bar.setAttribute('aria-label', `Castle health ${Math.max(0, Math.ceil(game.hp))} of ${game.maxHp}`);
     hud.d.textContent = game.defeated;
+    hud.road.textContent = road ? `${road} on the road` : '';
   }
   if (msgT > 0) { msgT -= dt; hud.m.style.opacity = clamp(msgT, 0, 1) * .95; }
 }
@@ -5463,6 +5486,7 @@ window.__setGold = n => { G.gold = n; };
 window.__G = () => G; window.__eIn = i => eIn.push(i); // the engine game, and queue an input for its next step
 window.__enemyOf = k => { const e = enemies.find(e => e.alive && e.type === k); if (!e) return null; const v = e.center.clone().project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; };
 window.__enemyXY = () => { const e = enemies.find(e => e.alive && e.type === 'soldier') || enemies[0]; if (!e) return null; const v = e.center.clone().project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; };
+window.__heroXY = () => { const so = G?.hero && eView.get(G.hero.unit); if (!so) return null; const v = so.center.clone().project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; };
 window.__spotXY = i => { const fr = spots.filter(s => !s.used); const s = fr[i % fr.length]; const v = new V3(s.x, 1, s.z).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; };
 window.__towerXY = i => { const t = towers[i]; const v = new V3(t.x, 1.3, t.z).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; };
 document.body.classList.add('ready');
