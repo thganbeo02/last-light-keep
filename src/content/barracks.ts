@@ -42,7 +42,7 @@ export const BARR = {
     mr: 0.3,
     resp: 6,
     rad: 3.6,
-    heal: 0.05,
+    heal: 0.1,
     holy: 40,
   },
   b: {
@@ -68,7 +68,7 @@ export const SOL_INFO = {
   ranger: ["Ranger", "A hooded archer who shoots ground and air, and still blocks when cornered."],
 };
 
-export const SOL_REGEN = 0.02;
+export const SOL_REGEN = 0.05;
 
 export const SOL_FIRST = ["Aldric", "Bram", "Cedric", "Doran", "Edric", "Finn", "Garrick", "Hal", "Ivo", "Jory", "Kael", "Leof", "Merek", "Nils", "Osric", "Perrin", "Rowan", "Sten", "Tobin", "Ulric", "Wat", "Wystan", "Yorick", "Gunnar", "Halvard", "Bertram", "Godwin", "Oswin", "Roderick", "Tam", "Willem", "Anselm", "Brynn", "Corwin", "Dunstan", "Elric", "Fenwick", "Gareth", "Hugo", "Lambert"];
 

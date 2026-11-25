@@ -927,7 +927,7 @@ export const SK = {
         0,
         2,
         "Field Medic",
-        "Soldiers heal 3% a second out of combat instead of 2%",
+        "Soldiers heal 8% a second out of combat instead of 5%",
         "hp",
         ["gamb"],
       ],

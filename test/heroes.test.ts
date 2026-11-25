@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HERO_ABILITIES as AB, HEROES, HERO_RECOVERY, HERO_SPEED } from '../src/content/heroes.ts';
+import { HERO_ABILITIES as AB, HEROES, HERO_RECOVERY, HERO_REGEN, HERO_SPEED } from '../src/content/heroes.ts';
 import { hurt, killReward, place, spawnEnemy } from '../src/engine/enemies.ts';
 import { DT, tick, type Input } from '../src/engine/game.ts';
 import { heroRoadSpot, isBurning } from '../src/engine/heroes.ts';
@@ -108,7 +108,7 @@ describe('battle heroes', () => {
     expect(foes.every(e => e.blocker === s)).toBe(true);
     hurtSoldier(g, s, 100, 'true');
     expect(s.hp).toBeCloseTo(s.maxHp - 30);
-    tick(g, [{ do: 'heroMove', x: p.x, z: p.z }]);
+    expect(tick(g, [{ do: 'heroMove', x: p.x, z: p.z }])).toContainEqual({ t: 'heroMoveBlocked', why: 'shield' });
     expect(h.route).toHaveLength(0);
     g.time = h.shieldUntil;
     tick(g);
@@ -202,5 +202,33 @@ describe('battle heroes', () => {
     expect(cast(g, 'undying-coal')).toBe(false);
     hurt(g, clean, 1e3, 'true');
     expect(g.gold - before).toBe(killReward(g, e) + killReward(g, clean) + 2 * a.gold);
+  });
+
+  it('heals 10% of max health a second after 2 s out of combat, and not while fighting', () => {
+    const g = battle('aldric'), s = g.hero!.unit;
+    hurtSoldier(g, s, s.maxHp / 2, 'true');
+    for (let i = 0; i < 2 / DT; i++) tick(g);
+    const before = s.hp;
+    for (let i = 0; i < 1 / DT; i++) tick(g);
+    expect(s.hp - before).toBeCloseTo(s.maxHp * HERO_REGEN, 0);
+    const p = heroRoadSpot(g, s, 2)!;
+    const foe = spawnEnemy(g, 'soldier', p.d); foe.stun = 30;
+    tick(g, [{ do: 'heroMove', x: p.x, z: p.z }]);
+    for (let i = 0; i < 60 && !s.fighting; i++) tick(g);
+    expect(s.fighting).toBe(true);
+    hurtSoldier(g, s, s.maxHp / 4, 'true');
+    const held = s.hp;
+    for (let i = 0; i < 3 / DT && foe.alive; i++) { tick(g); expect(s.hp).toBeLessThanOrEqual(held); }
+  });
+
+  it('Ashen Ward never pushes bosses', () => {
+    const g = battle('corwin');
+    const t = buildTower(g, 'arrow', 0, { instant: true, free: true })!;
+    const boss = spawnEnemy(g, 'gruk', 4); boss.stun = 30;
+    t.x = boss.x; t.z = boss.z;
+    expect(cast(g, 'ashen-ward', { targetTower: t.id })).toBe(true);
+    const d = boss.d;
+    tick(g);
+    expect(boss.d).toBe(d);
   });
 });

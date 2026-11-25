@@ -27,7 +27,7 @@ export type GameEvent =
   | { t: 'heroCast'; k: HeroAbility; at: { x: number; z: number }; eruptions?: Enemy[] }
   | { t: 'heroHit'; s: Soldier; e: Enemy }
   | { t: 'heroPush'; e: Enemy }
-  | { t: 'heroMoveBlocked' }
+  | { t: 'heroMoveBlocked'; why: 'shield' | 'route' }
   | { t: 'roar'; e: Enemy }
   | { t: 'stomping'; e: Enemy }
   | { t: 'stomp'; e: Enemy; towers: Tower[] }

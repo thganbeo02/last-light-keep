@@ -498,29 +498,72 @@ body.wm #hud,body.wm #einfo{display:none!important}
 /* Hero selection, battle controls, and Almanac */
 .hero-picks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .hero-picks button{display:flex;align-items:center;gap:8px;min-width:0;padding:5px 8px;text-align:left;border:2px solid #8a6540;background:#2c211a;color:#f5e6cf}
-.hero-picks button:hover:not(:disabled),.hero-picks button[aria-pressed="true"]{background:#47301e;border-color:#e5b76a}
+.hero-picks button{position:relative}
+.hero-picks button:hover:not(:disabled){background:#3a281a;border-color:#c89a5a}
+.hero-picks button[aria-pressed="true"]{background:#5a3a1e;border-color:#f2c14e;box-shadow:0 0 0 3px rgba(242,193,78,.55)}
+.hero-picks button[aria-pressed="true"]::after{content:"\2713";position:absolute;top:-8px;right:-8px;width:22px;height:22px;display:grid;place-items:center;border-radius:50%;background:#f2c14e;border:2px solid #2e1b0d;color:#2e1b0d;font:900 13px/1 var(--body)}
 .hero-picks img{width:44px;height:44px;object-fit:contain}
 .hero-picks b,.hero-picks small{display:block}
 .hero-picks b{font-size:12px}
 .hero-picks small{font:700 12px/1.2 var(--body);color:#e7cda4}
 #retryHeroes{margin:12px 0 16px}
-#heroHud{top:calc(10px + env(safe-area-inset-top,0px));right:calc(10px + env(safe-area-inset-right,0px));width:168px;padding:6px;border:1px solid #c6a46a88;border-radius:10px;background:var(--panel);box-shadow:0 2px 8px #100a0690;text-align:center}
-#heroHud button{padding:0;background:#2b231e;border:1px solid #9b7d55;border-radius:8px}
-#heroHud button[aria-pressed="true"]{outline:2px solid var(--gold);outline-offset:1px}
-#heroHud .hero-portrait{width:100%;display:flex;gap:6px;align-items:center;text-align:left;overflow:hidden}
-.hero-portrait img{width:51px;height:51px;object-fit:cover;flex:none}
-.hero-portrait b,.hero-portrait small{display:block}
-.hero-portrait b{font-size:10px;color:#f8dfac}
-.hero-portrait small{font:700 11px/1.2 var(--body);color:#d3e8fb}
-.hero-health{display:flex;align-items:center;gap:5px;justify-content:space-between;margin:3px 1px;color:#e6f3ff;font:700 10px/1.2 var(--body);font-variant-numeric:tabular-nums}
-.hero-health meter{width:45%;height:9px}
-.hero-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
-#heroHud .hero-actions button{position:relative;min-height:44px}
-.hero-actions img{display:block;width:100%;height:43px;object-fit:contain}
-.hero-actions span{position:absolute;right:1px;top:1px;background:#16131b;color:#fff0c7;border-radius:3px;padding:0 3px;font:700 10px/1.25 var(--body);font-variant-numeric:tabular-nums}
-.hero-actions small{display:block;font:800 10px/1.1 var(--body);padding-bottom:3px}
-.hero-actions span:empty{display:none}
-.hero-hint{margin-top:4px;color:#ffe2aa;font-weight:700}
+/* Battle hero panel: bottom left, the spell bar beside it (above it on narrow screens). Aldric's rim is blue, Corwin's ember. */
+#heroHud{left:calc(10px + env(safe-area-inset-left,0px));bottom:calc(10px + env(safe-area-inset-bottom,0px));width:300px;box-sizing:border-box;padding:10px;display:grid;gap:8px;border-radius:14px;background:rgba(28,16,8,.88);border:2px solid rgba(242,193,78,.5);box-shadow:0 4px 12px #100a0690;--hc:#8ecaff}
+#heroHud[data-hero="corwin"]{--hc:#ffa347}
+.hh-top{display:flex;align-items:center;gap:10px}
+#heroHud .hh-por{position:relative;width:64px;height:64px;min-height:0;flex:none;padding:0;border-radius:50%;border:4px solid var(--hc);background:#2b231e;overflow:hidden}
+#heroHud .hh-por:disabled{opacity:1;cursor:default}
+#heroHud .hh-por[aria-pressed="true"]{outline:3px solid #fff;outline-offset:2px}
+.hh-por img{display:block;width:100%;height:100%;object-fit:cover;pointer-events:none}
+.hh-por.down img{filter:grayscale(1) brightness(.7)}
+.hh-t,.hab-t{position:absolute;inset:0;display:grid;place-items:center;font:400 20px/1 var(--disp);color:#fff;text-shadow:0 2px 0 #000;pointer-events:none}
+.hh-t:empty,.hab-t:empty{display:none}
+.hh-id{flex:1;min-width:0;display:grid;gap:7px}
+.hh-nm{display:flex;align-items:baseline;justify-content:space-between;gap:6px;min-width:0}
+.hh-nm b{font:400 14px/1.1 var(--disp);color:#ffe9a8;white-space:nowrap}
+.hh-nm small{font:800 12px/1.2 var(--body);color:#e7cda4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hh-hp{display:flex;align-items:center;gap:8px;font:900 12px/1 var(--body);color:#fff4d8;font-variant-numeric:tabular-nums;white-space:nowrap}
+.hh-hp>i{flex:1;height:10px;border-radius:5px;background:rgba(255,255,255,.16);overflow:hidden}
+.hh-hp>i>i{display:block;height:100%;background:#5fd36a;transition:width .2s}
+.hh-hp>i.low>i{background:#e0453a}
+.hh-hp>i.down>i{background:#8a8270}
+.hh-ab{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.hh-ab>div{display:grid;justify-items:center;gap:4px}
+.hh-ab small{font:400 10px/1 var(--disp);color:#fff3c8}
+#heroHud .hab{position:relative;width:60px;height:60px;min-height:0;padding:0;border-radius:50%;border:3px solid #4a2f14;background:#2b231e}
+#heroHud .hab:disabled{opacity:1;cursor:default}
+.hab img{display:block;width:100%;height:100%;border-radius:50%;pointer-events:none}
+.hab::before{content:"";position:absolute;inset:0;border-radius:50%;pointer-events:none}
+.hab.cool::before{background:conic-gradient(rgba(10,6,2,.72) var(--p,0%),transparent 0)}
+.hab.cool img{filter:saturate(.4)}
+#heroHud .hab.ready{border-color:#f2c14e;box-shadow:0 0 0 3px rgba(242,193,78,.45)}
+.hab.charge::before{inset:-6px;background:conic-gradient(var(--hc) var(--p,0%),rgba(255,255,255,.18) 0);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3px));mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3px))}
+.hab.charge img{filter:saturate(.5) brightness(.8)}
+.hab.need img{filter:grayscale(1) brightness(.7)}
+#heroHud .hab.spent{border-color:#3a3a36;background:#1a1612}
+.hab.spent img{filter:grayscale(1) brightness(.45)}
+.hab.need .hab-t,.hab.spent .hab-t{font-size:11px}
+.hab.ready .hab-t{inset:auto -4px -4px auto;min-width:20px;height:20px;padding:0 4px;box-sizing:border-box;border-radius:99px;background:#c8302a;border:2px solid #2e1b0d;font:900 11px/1 var(--body);text-shadow:none}
+#heroHud .hab.on{border-color:#fff;box-shadow:0 0 0 4px var(--hc);transform:translateY(2px)}
+.hab kbd{position:absolute;top:-6px;right:-6px;font:400 10px/1 var(--disp);background:#2a1608;color:#f2c14e;border-radius:6px;padding:3px 5px;border:2px solid #f2c14e}
+.hh-aim{display:flex;align-items:center;gap:8px;padding:5px 5px 5px 8px;border-radius:10px;background:#3a2410;border:1px solid #6b4a22}
+.hh-aim img{width:28px;height:28px;border-radius:50%;object-fit:cover;flex:none}
+.hh-aim span{flex:1;min-width:0;font:800 13px/1.2 var(--body);color:#ffe2aa}
+#heroHud .hh-aim button{min-height:36px;padding:0 12px;border-radius:9px;border:2px solid #6b4a22;background:#eadbb2;color:#3a2414;font-size:12px}
+body:has(#heroHud:not([hidden])) #spells{left:calc(328px + env(safe-area-inset-left,0px))}
+@media (hover:none){.hab kbd{display:none}}
+@media (max-width:1160px){body:has(#heroHud:not([hidden])) #spells{left:calc(10px + env(safe-area-inset-left,0px));bottom:calc(220px + env(safe-area-inset-bottom,0px))}}
+@media (max-width:700px){
+  #heroHud{bottom:calc(80px + env(safe-area-inset-bottom,0px));width:214px;padding:8px;gap:6px}
+  .hh-nm{display:none}
+  #heroHud .hh-por{width:48px;height:48px;border-width:3px}
+  #heroHud .hab{width:48px;height:48px}
+  body:has(#heroHud:not([hidden])) #spells{bottom:calc(244px + env(safe-area-inset-bottom,0px))}
+}
+@media (max-width:520px){
+  #heroHud{bottom:calc(150px + env(safe-area-inset-bottom,0px))}
+  body:has(#heroHud:not([hidden])) #spells{bottom:calc(314px + env(safe-area-inset-bottom,0px))}
+}
 .hero-book{display:grid;gap:9px;margin:14px 0 0}
 .hero-book>div{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid #97693e55}
 .hero-book img{width:46px;height:46px;object-fit:contain;flex:none}
@@ -528,17 +571,9 @@ body.wm #hud,body.wm #einfo{display:none!important}
 .hero-book dt small{font:700 12px/1.25 var(--body)}
 .hero-book dd{margin:3px 0 0;font-weight:700}
 @media (max-width:560px){
-  #heroHud{width:124px;padding:4px}
-  .hero-portrait img{width:41px;height:41px}
-  #heroHud .hero-actions button{min-height:36px}
-  .hero-actions img{height:34px}
-  #tut{top:calc(136px + env(safe-area-inset-top,0px))}
-  body:has(#heroHud .hero-hint:not([hidden])) #tut{top:calc(160px + env(safe-area-inset-top,0px))}
   #book .tabs button{font-size:clamp(11px,3vw,16px);padding:4px 8px}
 }
 @media (max-width:350px){
-  #heroHud{width:112px;right:5px}
-  body:has(#heroHud:not([hidden])) #hm{max-width:158px}
   .hero-picks img{width:34px;height:34px}
 }
 

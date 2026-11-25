@@ -64,7 +64,7 @@ function apply(g: Game, i: Input) {
     case 'aim': if (tower) cycleAim(tower); break;
     case 'rally': if (tower?.type === 'barracks') { const r = rallyPick(g, tower, i.x, i.z); if (r) setRally(tower, r); } break;
     case 'callWave': sendWave(g, true); break;
-    case 'heroMove': if (g.hero?.unit.alive && !moveHero(g, i)) g.events.push({ t: 'heroMoveBlocked' }); break;
+    case 'heroMove': { const why = g.hero?.unit.alive && moveHero(g, i); if (why) g.events.push({ t: 'heroMoveBlocked', why }); break; }
     case 'heroCast': castHero(g, i.k, i.at, i.targetTower); break;
     case 'cast': { const q = spellSpot(g, i.k, i.x, i.z); if (q) castSpell(g, i.k, q); break; }
   }

@@ -3513,7 +3513,6 @@ function engineStart() {
   for (const r of G.enemies) { const e = Enemy.of(r); eView.set(r, e); enemies.push(e); }
   for (const t of towers) t.view(0);
   if (G.hero) eView.set(G.hero.unit, Soldier.of(G.hero.unit));
-  heroEmoteUntil = 0;
   heroLooks(0);
   engineSync();
 }
@@ -3612,7 +3611,7 @@ function engineEvent(ev) {
       for (const o of ev.healed) for (let k = 0; k < 5; k++) glow.spawn(o.x + rand(-.3, .3), o.y + o.cy + rand(-.2, .4), o.z + rand(-.3, .3), 0, rand(.8, 1.6), 0, .7, .09, 0x6aff8a, 0, F_SPIN, 1, 0x0a4a1a);
       break;
     case 'heroCast': heroCastFx(ev); break;
-    case 'heroMoveBlocked': msg('No walkable route there'); break;
+    case 'heroMoveBlocked': msg(ev.why === 'shield' ? 'Aldric holds still behind Shield Wall' : 'No walkable route there'); break;
     case 'heroPush': fxDust(new V3(ev.e.x, ev.e.y, ev.e.z), 5, .3); break;
     case 'heroHit': {
       const c = new V3(ev.e.x, ev.e.y + ev.e.cy, ev.e.z);
@@ -3842,6 +3841,19 @@ function castSpell(k, q) { eIn.push({ do: 'cast', k, x: q.x, z: q.z }); } // the
 function renderSpells() {
   const ks = game.spells || [];
   $('spells').innerHTML = ks.map((k, i) => `<button type="button" id="sp-${k}" class="sp${ui.spell === k ? ' on' : ''}" data-k="${k}" aria-label="${SPELLS[k].name}: ${SPELLS[k].desc} Key ${i + 1}"><img src="${SPELL_ART[k]}" alt="" draggable="false"><span class="sp-n">${SPELLS[k].name}</span><span class="sp-t"></span><kbd>${i + 1}</kbd></button>`).join('');
+}
+// the bar shows in a played battle; each button's dial sweeps away as it recharges (none before wave 1)
+function updateSpellBar() {
+  const bar = $('spells');
+  bar.hidden = !(game.spells && game.spells.length) || $('ctrl').hidden || game.mode !== 'play' || game.state !== 'play';
+  if (bar.hidden) return;
+  for (const k of game.spells) {
+    const b = $('sp-' + k); if (!b) continue;
+    const left = game.scd[k] || 0, wait = game.wave < 1;
+    b.style.setProperty('--p', wait ? '100%' : (left / SPELLS[k].cd * 100).toFixed(1) + '%');
+    b.classList.toggle('cool', left > 0 || wait);
+    b.querySelector('.sp-t').textContent = wait || left <= 0 ? '' : Math.ceil(left);
+  }
 }
 // hovering a spell shows what it does (mouse only; touch taps cast)
 function spellTip(b) {
@@ -4511,6 +4523,7 @@ addEventListener('keydown', e => {
 function hideWorld() { wmapEl.hidden = true; document.body.classList.remove('wm'); }
 function showWorld() {
   $('title').hidden = true; hideEnd(); $('maps').hidden = true; $('brief').hidden = true; $('ctrl').hidden = true; $('bmenu').hidden = true;
+  $('heroHud').hidden = true; $('spells').hidden = true; // the battle loop that hides them pauses while the map is open
   if (!WM.built) { const t0 = performance.now(); wmBuild(); WM.buildMs = Math.round(performance.now() - t0); }
   wmRefresh(); wmapEl.hidden = false; document.body.classList.add('wm');
   { const s = loadSave(), g = gateTier(s); if (s.tierSeen == null) { s.tierSeen = g; writeSave(s); } else if (g > s.tierSeen) { s.tierSeen = g; writeSave(s); setTimeout(() => { wToast(UNLOCKS[g].note); clearTimeout(wToastT); wToastT = setTimeout(() => $('wtoast').hidden = true, 5000); }, 600); } }
@@ -5134,15 +5147,16 @@ function updatePlayUI(dt) {
     }
   }
   if (game.mode === 'play') updateCtrl();
+  updateSpellBar();
   updateHeroHUD();
 }
 
 // ================================================================ hero controls and effects
-const HERO_ART = Object.fromEntries(Object.entries(import.meta.glob('./art/heroes/*.webp', { eager: true, import: 'default' })).map(([p, url]) => [p.split('/').pop().slice(0, -5), url]));
+const HERO_ART = Object.fromEntries(Object.entries(import.meta.glob(['./art/heroes/ab-*.webp', './art/heroes/*-determined.webp'], { eager: true, import: 'default' })).map(([p, url]) => [p.split('/').pop().slice(0, -5), url]));
 const abilitiesFor = key => Object.entries(HERO_ABILITIES).filter(([, a]) => a.hero === key);
 const heroBadge = key => BADGE['hero-' + key];
 const HERO_ACTION_LABEL = { 'rally-the-line': 'Rally', 'shield-wall': 'Wall', 'the-gate-holds': 'Gate', kindle: 'Kindle', 'ashen-ward': 'Ward', 'undying-coal': 'Coal' };
-let heroChoice = 'aldric', hudHeroKey, heroHudCache = '', heroEmoteUntil = 0;
+let heroChoice = 'aldric', hudHeroKey, heroHudCache = '';
 const heroHud = $('heroHud');
 function renderHeroPicker(id) {
   const el = $(id);
@@ -5167,70 +5181,109 @@ function renderHeroBook(key) {
     ${abilitiesFor(key).map(([k, a]) => `<div><img src="${HERO_ART['ab-' + k]}" alt=""><div><dt>${a.name}${a.cd ? ` <small>${a.cd} s recharge</small>` : ''}</dt><dd>${HERO_ABILITY_TEXT[k]}</dd></div></div>`).join('')}</dl></div></section>`;
   showHeroPreview(key);
 }
+const HERO_KEYS = ['Digit4', 'Digit5', 'Digit6'];
+const heroPortrait = key => HERO_ART[key + '-determined'];
 function makeHeroHUD(key) {
   hudHeroKey = key;
   heroHudCache = '';
   if (!key) { heroHud.replaceChildren(); return; }
   const h = HEROES[key];
-  heroHud.innerHTML = `<button type="button" data-action="move" class="hero-portrait" aria-label="Move ${h.name}" title="Move ${h.name}"><img alt=""><span><b>${h.name}</b><small>Move</small></span></button>
-    <div class="hero-health"><meter min="0" max="${h.hp}" value="${h.hp}" aria-label="${h.name} health"></meter><span></span></div>
-    <div class="hero-actions">${abilitiesFor(key).map(([k, a]) => `<button type="button" data-action="${k}" aria-label="${a.name}"><img alt="" src="${HERO_ART['ab-' + k]}"><span></span><small>${HERO_ACTION_LABEL[k]}</small></button>`).join('')}</div>
-    <div class="hero-hint" role="status" hidden></div>`;
+  heroHud.dataset.hero = key;
+  heroHud.innerHTML = `<div class="hh-top"><button type="button" data-action="move" class="hh-por" aria-label="Move ${h.name}" title="Move ${h.name}: tap, then tap walkable ground"><img alt="" src="${heroPortrait(key)}" draggable="false"><span class="hh-t"></span></button>
+    <div class="hh-id"><div class="hh-nm"><b>${h.name}</b><small>${h.title.replace(/^The /, '')}</small></div>
+    <div class="hh-hp"><i role="img"><i></i></i><span></span></div></div></div>
+    <div class="hh-ab">${abilitiesFor(key).map(([k, a], i) => `<div><button type="button" class="hab" data-action="${k}"><img alt="" src="${HERO_ART['ab-' + k]}" draggable="false"><span class="hab-t"></span><kbd>${i + 4}</kbd></button><small>${HERO_ACTION_LABEL[k]}</small></div>`).join('')}</div>
+    <div class="hh-aim" role="status" hidden><img alt=""><span></span><button type="button" data-cancel>Cancel</button></div>`;
 }
+/** One ability's look: state (ready, cool, charge, need, spent), the number or word on it, the sweep or charge share, and why it can't be cast. */
 function heroAbilityStatus(h, k) {
-  const cd = Math.max(0, Math.ceil((h.recharge[k] || 0) - G.time));
-  if (cd) return [`${cd}s`, 'Recharging'];
+  const a = HERO_ABILITIES[k], left = Math.max(0, (h.recharge[k] || 0) - G.time);
+  if (left > 0) return { state: 'cool', text: Math.ceil(left), p: left / a.cd, why: `Ready in ${Math.ceil(left)} s` };
   if (k === 'the-gate-holds') {
-    const required = HERO_ABILITIES[k].hits;
-    if (h.hits < required) return [`${Math.floor(h.hits / required * 100)}%`, 'Charges as Aldric takes hits'];
-    if (h.gate) return ['Active', 'Gate is already raised'];
-    if (!heroRoadSpot(G, h.unit, 1.5)) return ['Road', 'Move Aldric near the road'];
+    if (h.hits < a.hits) return { state: 'charge', text: '', p: h.hits / a.hits, why: `Charges as Aldric takes hits: ${h.hits} of ${a.hits}` };
+    if (h.gate) return { state: 'need', text: 'Up', why: 'The gate is already raised' };
+    if (!heroRoadSpot(G, h.unit, 1.5)) return { state: 'need', text: 'Road', why: 'Move Aldric next to the road' };
   }
   if (k === 'undying-coal') {
-    if (h.coalUsed) return ['Spent', 'Already used this battle'];
-    if (!G.enemies.some(e => e.alive && isBurning(G, e))) return ['—', 'Requires a burning enemy'];
+    if (h.coalUsed) return { state: 'spent', text: 'Spent', why: 'Used this battle; burning kills still pay extra gold' };
+    const n = G.enemies.filter(e => e.alive && isBurning(G, e)).length;
+    if (!n) return { state: 'need', text: 'Burn', why: 'Needs a burning enemy' };
+    return { state: 'ready', text: '', badge: n, why: '' };
   }
-  return ['', ''];
+  return { state: 'ready', text: '', why: '' };
 }
 const AIM_TEXT = { move: 'Tap walkable ground', kindle: 'Tap the road', 'ashen-ward': 'Tap a tower' };
 function updateHeroHUD() {
   const h = G?.hero;
-  heroHud.hidden = !h || ui.endShown || ($('ctrl').hidden && game.state === 'play');
+  heroHud.hidden = !h || ui.endShown || game.mode !== 'play' || $('ctrl').hidden;
   if (heroHud.hidden) return;
   if (h.key !== hudHeroKey) makeHeroHUD(h.key);
-  const { unit } = h, active = unit.alive && game.state === 'play';
-  const hp = Math.max(0, Math.ceil(unit.hp)), recovery = Math.max(0, Math.ceil(h.respawnAt - G.time));
-  const expression = game.state === 'victory' ? 'triumphant' : !unit.alive || hp / unit.maxHp <= .35 ? 'hurt' : (unit.fighting || h.route.length || heroEmoteUntil > G.time) ? 'determined' : 'neutral';
-  const move = heroHud.querySelector('[data-action="move"]');
+  const { unit } = h, active = unit.alive && game.state === 'play', shield = h.shieldUntil > G.time;
+  const hp = unit.alive ? Math.max(0, Math.ceil(unit.hp)) : 0, recovery = Math.max(0, Math.ceil(h.respawnAt - G.time));
   const states = abilitiesFor(h.key).map(([k]) => heroAbilityStatus(h, k));
-  const cache = JSON.stringify([active, hp, recovery, expression, ui.heroAim, h.shieldUntil > G.time, states]);
+  const cache = JSON.stringify([active, hp, recovery, ui.heroAim, shield, states.map(s => [s.state, s.text, s.badge, s.p && s.p.toFixed(2)])]);
   if (cache === heroHudCache) return;
   heroHudCache = cache;
-  move.firstElementChild.src = HERO_ART[h.key + '-' + expression];
-  move.disabled = !active || h.shieldUntil > G.time;
+  const move = heroHud.querySelector('[data-action="move"]');
+  move.disabled = !active || shield;
+  move.classList.toggle('down', !unit.alive);
+  move.querySelector('.hh-t').textContent = unit.alive ? '' : recovery;
   move.setAttribute('aria-pressed', ui.heroAim === 'move');
-  const meter = heroHud.querySelector('meter');
-  meter.value = hp;
-  meter.nextElementSibling.textContent = unit.alive ? `${hp} / ${unit.maxHp}` : `Returns in ${recovery}s`;
+  move.title = !unit.alive ? `Back at the Keep in ${recovery} s` : shield ? 'Holding still behind Shield Wall' : `Move ${HEROES[h.key].name}: tap, then tap walkable ground`;
+  const bar = heroHud.querySelector('.hh-hp > i'), share = hp / unit.maxHp;
+  bar.firstElementChild.style.width = (share * 100).toFixed(1) + '%';
+  bar.classList.toggle('low', unit.alive && share <= .35);
+  bar.classList.toggle('down', !unit.alive);
+  bar.setAttribute('aria-label', unit.alive ? `Health ${hp} of ${unit.maxHp}` : `Recovering, back in ${recovery} seconds`);
+  bar.nextElementSibling.textContent = unit.alive ? `${hp} / ${unit.maxHp}` : `Back in ${recovery} s`;
   abilitiesFor(h.key).forEach(([k, a], i) => {
-    const b = heroHud.querySelector(`[data-action="${k}"]`), [label, reason] = states[i];
-    b.querySelector('span').textContent = label;
-    b.disabled = !active || !!reason;
+    const b = heroHud.querySelector(`[data-action="${k}"]`), s = states[i];
+    b.className = 'hab ' + s.state + (ui.heroAim === k ? ' on' : '');
+    b.style.setProperty('--p', ((s.p || 0) * 100).toFixed(1) + '%');
+    b.querySelector('.hab-t').textContent = s.badge || s.text;
+    b.disabled = !active || s.state !== 'ready';
     b.setAttribute('aria-pressed', ui.heroAim === k);
-    b.title = `${a.name}. ${HERO_ABILITY_TEXT[k]}${reason ? ' ' + reason + '.' : ''}`;
+    b.setAttribute('aria-label', `${a.name}, key ${i + 4}. ${s.why || 'Ready'}.`);
   });
-  const hint = heroHud.querySelector('.hero-hint');
-  hint.hidden = !ui.heroAim;
-  hint.textContent = AIM_TEXT[ui.heroAim] || '';
+  const aim = heroHud.querySelector('.hh-aim');
+  aim.hidden = !ui.heroAim;
+  if (ui.heroAim) {
+    aim.querySelector('img').src = ui.heroAim === 'move' ? heroPortrait(h.key) : HERO_ART['ab-' + ui.heroAim];
+    aim.querySelector('span').textContent = (ui.heroAim === 'move' ? 'Move' : HERO_ABILITIES[ui.heroAim].name) + ' · ' + AIM_TEXT[ui.heroAim];
+  }
+}
+function pickHeroAction(k) {
+  const h = G?.hero;
+  if (!h?.unit.alive || game.state !== 'play' || game.mode !== 'play') return;
+  if (k !== 'move') {
+    const s = heroAbilityStatus(h, k);
+    if (s.state !== 'ready') { msg(`${HERO_ABILITIES[k].name}: ${s.why}`); return; }
+  } else if (h.shieldUntil > G.time) { msg('Aldric holds still behind Shield Wall'); return; }
+  const prev = ui.heroAim;
+  closeMenus();
+  if (k === 'move' || HERO_ABILITIES[k].target !== 'self') { if (prev !== k) ui.heroAim = k; }
+  else eIn.push({ do: 'heroCast', k });
+  heroHudCache = '';
 }
 heroHud.addEventListener('click', e => {
-  const b = e.target.closest('[data-action]'), h = G?.hero;
-  if (!b || !h?.unit.alive || game.state !== 'play') return;
-  const k = b.dataset.action, prev = ui.heroAim;
-  closeMenus();
-  if (k === 'move' || HERO_ABILITIES[k].target !== 'self') {
-    if (prev !== k) ui.heroAim = k;
-  } else eIn.push({ do: 'heroCast', k });
+  if (e.target.closest('[data-cancel]')) { closeMenus(); heroHudCache = ''; return; }
+  const b = e.target.closest('[data-action]');
+  if (b) pickHeroAction(b.dataset.action);
+});
+// hovering an ability shows what it does (mouse only), like the spell bar
+function heroTip(b) {
+  const h = G?.hero, k = b.dataset.action; if (!h || !HERO_ABILITIES[k]) return;
+  const a = HERO_ABILITIES[k], s = heroAbilityStatus(h, k), i = abilitiesFor(h.key).findIndex(([q]) => q === k);
+  const foot = (a.cd ? `Recharges in ${a.cd} s` : k === 'the-gate-holds' ? `Charges from ${a.hits} hits taken` : 'Once per battle') + ` · key ${i + 4}`;
+  tipEl.innerHTML = tipHTML({ title: a.name, col: a.hero === 'aldric' ? '#24365a' : '#8a3a08', sub: s.why || 'Ready', body: HERO_ABILITY_TEXT[k], foot }); tipEl.hidden = false;
+  const r = b.getBoundingClientRect(); placeTip(r.left + r.width / 2, r.top, 10);
+}
+heroHud.addEventListener('pointerover', e => { const b = e.target.closest('.hab'); if (b && e.pointerType === 'mouse' && !ui.spot && !ui.sel) heroTip(b); });
+heroHud.addEventListener('pointerout', e => { if (!e.relatedTarget?.closest?.('.hab') && !ui.spot && !ui.sel) tipEl.hidden = true; });
+addEventListener('keydown', e => {
+  if (game.mode !== 'play' || !$('book').hidden || !$('skills').hidden || !G?.hero) return;
+  const n = HERO_KEYS.indexOf(e.code), ab = abilitiesFor(G.hero.key);
+  if (n >= 0 && ab[n]) pickHeroAction(ab[n][0]);
 });
 function heroAimPoint(k, x, y) {
   if (k === 'ashen-ward') {
@@ -5261,7 +5314,6 @@ cvs.addEventListener('pointermove', e => {
   }
 });
 function heroCastFx({ k, at, eruptions }) {
-  heroEmoteUntil = G.time + 1.5;
   const a = HERO_ABILITIES[k], col = a.hero === 'aldric' ? 0x83c5ff : 0xffa347;
   const so = eView.get(G.hero?.unit);
   if (so) so.heroCast = { clip: k, at: G.time, duration: HERO_CLIPS[a.hero][k].motion };

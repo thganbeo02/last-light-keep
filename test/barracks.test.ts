@@ -29,11 +29,11 @@ const walker = (g: Game, t: Tower, type: EnemyType, before = 2) => {
   return spawnEnemy(g, type, s.d - before, s.path);
 };
 
-describe('soldier stats match the 3.x game exactly', () => {
+describe('soldier stats match the recorded snapshot', () => { // 3.x numbers, then 3.3's healing buff (Paladins 10%, Field Medic 8%)
   const ids = ['barracks.root', 'barracks.pala', 'barracks.gamb', 'barracks.drill', 'barracks.medic', 'barracks.horn', 'barracks.fourth', 'barracks.rang', 'barracks.right'];
   const snap = (list: string[]) => { const g = makeGame({ map: 0, skills: list }), out: Record<string, unknown> = {}; for (const k of [1, 2, 3] as const) out[k] = barrStat(g, k); for (const k of ['a', 'b'] as const) for (const R of [1, 2, 3]) out[k + R] = barrStat(g, k, R); return JSON.stringify(out); };
-  it('with no picks', () => expect(fnv(snap([]))).toBe(527084854)); // window.__barrStats([]), 2026-11-24
-  it('with every Barracks stat pick', () => expect(fnv(snap(ids))).toBe(3827292569));
+  it('with no picks', () => expect(fnv(snap([]))).toBe(238757196)); // 2026-11-25, after the healing buff
+  it('with every Barracks stat pick', () => expect(fnv(snap(ids))).toBe(2632130205));
 });
 
 describe('the Barracks', () => {
@@ -67,10 +67,10 @@ describe('the Barracks', () => {
     for (let i = 0; i < 30 * 20 && t.soldiers[0].id === id; i++) tick(g);
     expect(t.soldiers[0].id).not.toBe(id);
   });
-  it('soldiers regain 2% health a second after 2 s out of combat', () => {
-    const g = game(), t = barracks(g), s = t.soldiers[0]; s.hp = s.maxHp / 2;
+  it('soldiers regain 5% health a second after 2 s out of combat', () => {
+    const g = game(), t = barracks(g), s = t.soldiers[0]; s.hp = s.maxHp / 4;
     run(g, 2); const h = s.hp; run(g, 1);
-    expect(s.hp - h).toBeCloseTo(s.maxHp * 0.02, 0);
+    expect(s.hp - h).toBeCloseTo(s.maxHp * 0.05, 0);
   });
   it('upgrading replaces the soldiers with the next kind; selling sends them home', () => {
     const g = game(), t = barracks(g); upgradeTower(g, t);

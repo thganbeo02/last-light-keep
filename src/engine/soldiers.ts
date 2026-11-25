@@ -41,7 +41,7 @@ export function barrStat(g: Pick<Game, 'skills'>, k: BarrKey, rank = 1): BarrSta
   if (h('barracks.pala') && k === 'a') { b.hp = Math.round(b.hp * 1.1); b.mr = +(b.mr + 0.1).toFixed(2); }
   if (h('barracks.gamb')) b.armor = +(b.armor + 0.1).toFixed(2);
   if (h('barracks.drill')) b.dmg = +(b.dmg * 1.1).toFixed(1);
-  if (h('barracks.medic') && !b.heal) b.regen = 0.03;
+  if (h('barracks.medic') && !b.heal) b.regen = 0.08;
   if (h('barracks.horn')) b.resp = +(b.resp * 0.8).toFixed(1);
   if (h('barracks.fourth')) b.n += 1;
   if (h('barracks.rang') && b.ranged) b.ranged += 0.5;

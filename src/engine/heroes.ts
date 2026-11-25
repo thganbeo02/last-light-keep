@@ -1,5 +1,5 @@
 import { ATK } from '../content/enemies.ts';
-import { HERO_ABILITIES as AB, HERO_BURN_DPS, HEROES, HERO_RECOVERY, HERO_SPEED, type HeroAbility, type HeroKey } from '../content/heroes.ts';
+import { HERO_ABILITIES as AB, HERO_BURN_DPS, HEROES, HERO_RECOVERY, HERO_REGEN, HERO_SPEED, type HeroAbility, type HeroKey } from '../content/heroes.ts';
 import { hurt, type Enemy } from './enemies.ts';
 import { lerpAngle, type Vec2 } from './math.ts';
 import { gx2w, gz2w, H, smoothPath, TILE, W, type Sample } from './map.ts';
@@ -121,15 +121,17 @@ function release(h: Hero) {
   h.blocked.length = 0;
 }
 
-export function moveHero(g: Game, { x, z }: Vec2) {
+/** Gives a movement order. Returns why it was refused: Aldric holds still behind Shield Wall, or there is no walkable route. */
+export function moveHero(g: Game, { x, z }: Vec2): 'shield' | 'route' | null {
   const h = g.hero;
-  if (!h?.unit.alive || h.shieldUntil > g.time) return false;
+  if (!h?.unit.alive) return 'route';
+  if (h.shieldUntil > g.time) return 'shield';
   const route = routeTo(g, h.unit, { x, z });
-  if (!route) return false;
+  if (!route) return 'route';
   h.route = route;
   release(h);
   h.unit.target = h.unit.atk = null;
-  return true;
+  return null;
 }
 
 export function castHero(g: Game, k: HeroAbility, at?: Vec2, towerId?: number) {
@@ -273,7 +275,7 @@ export function updateHero(g: Game, dt: number) {
     const w = h.ward;
     if (w.until <= g.time || !g.towers.includes(w.tower)) h.ward = null;
     else for (const e of g.enemies) {
-      if (!e.alive || e.def.air || w.pushed.has(e.id) || !within(e, w.tower, WARD.radius)) continue;
+      if (!e.alive || e.def.air || e.type === 'boss' || e.type === 'gruk' || w.pushed.has(e.id) || !within(e, w.tower, WARD.radius)) continue;
       w.pushed.add(e.id);
       e.d = Math.max(0, e.d - WARD.push);
       e.blocker = null;
@@ -316,6 +318,8 @@ export function updateHero(g: Game, dt: number) {
   }
   s.target = walking ? null : h.blocked[0] ?? g.enemies.find(inReach) ?? null;
   s.fighting = !!s.target;
+  s.calm += dt; // hurtSoldier resets it
+  if (!s.fighting && s.calm > 2) s.hp = Math.min(s.maxHp, s.hp + s.maxHp * HERO_REGEN * dt);
   s.cd = Math.max(0, s.cd - dt);
   if (s.target) {
     const e = s.target;

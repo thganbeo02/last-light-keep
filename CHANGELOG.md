@@ -6,6 +6,7 @@
 - Restored War Drum ability effects and per-target Shaman heal sparkles. The UI and engine now read the same balance data from `src/content/`.
 - Verified with `npm test` (120 tests), `npm run typecheck`, `npm run build`, and `git diff --check`. Chrome verified Corwin’s eight clips, playback controls, movement, and Kindle. Watch benchmarks match the pre-release engine on all seven maps. River Crossing, Highland Pass, and Ember Crater retain their existing gaps against the 3.2 recording.
 - Hero balance is a first pass.
+- Hero HUD and healing (branch `m3/hero-hud-and-healing`): the hero panel moves to the bottom left beside the spells, with one portrait per hero, a health bar, abilities on keys 4–6 with recharge sweeps, The Gate Holds' charge ring, need, spent and aiming states, tooltips and a Cancel bar while aiming. Soldiers heal 5% a second out of combat (was 2%), Paladins and heroes 10% (Paladins were 5%, heroes didn't heal), Field Medic 8% (was 3%). Ashen Ward reaches 2.5 tiles (was 1.5) and no longer pushes bosses; Undying Coal's bonus is 1 gold (was 3). Fixed: the hero panel stayed on the world map after Quit, Shield Wall's move refusal said there was no route, and the spell bar's recharge dials and visibility, lost in milestone 2. The briefing marks the chosen hero with a tick. 122 tests; `npm run sim` against 3.2 now flags River Crossing's castle health (80 against 55) as soldiers heal faster.
 
 ## 2026-11-24
 
