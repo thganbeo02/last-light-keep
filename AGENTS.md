@@ -53,6 +53,7 @@ npm run typecheck
 ## Wrap up
 
 - An explicit **“wrap up”** authorizes one focused Git commit for the current task. Otherwise, commit only when the user asks. Preserve unrelated work, including changes already staged.
+- Use `type(scope): imperative summary` for commit subjects, for example `docs(workflow): document the wrap-up process`. Keep any commit body under 50 words and use it for context the diff alone cannot explain.
 - Finish the task, run the relevant checks and `git diff --check`, and add a short dated entry to `CHANGELOG.md` (create it if needed). Record what changed, the checks run, and any known limitations. Stage and commit only the task's changes, then summarize the outcome and give the commit hash.
 - Version bumps, Git pushes, and Claude artifact publishing each require a separate explicit request. The user can combine requests in one message, such as **“wrap up and publish to the artifact.”**
 
