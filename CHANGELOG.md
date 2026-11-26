@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-26 — 3.4 Hero Workshop
+
+- Updated Aldric and Corwin’s in-game models. Aldric’s v2 animations are active in battle, and the Almanac has v1/v2 playback and manual model rotation.
+- Added a versioned full-size Hero Workshop to both Almanac pages. It opens on the selected hero and carries over Aldric’s motion version, with reference art, camera presets, zoom and frame stepping. The standalone workshop remains available offline. Corwin’s workshop model is a static pose.
+- Verified with all 123 tests, TypeScript, the single-file game build, the standalone workshop build, and Git whitespace checks. Chromium verified both workshop links, Aldric’s motion switch and frame stepping, Escape navigation, and Shield Wall in battle. The game build is 14.7 MB.
+- Fixed Claude hosting compatibility by mounting the workshop in the game document and decoding inline models and textures without network requests. Chromium also verified both models under a policy that blocks network requests and frames.
+
 ## 2026-11-25 — 3.3 Captain and Coal
 
 - Replaced the pause screen with the compact Parchment menu and fixed its overlay sticking on the world map. Checked Resume, Restart, Almanac, and World map in Chrome, including a 320 px viewport check. All 123 tests, the TypeScript check, the single-file build, and the Git whitespace check passed.
