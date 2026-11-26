@@ -3,3 +3,5 @@ dist/
 .DS_Store
 art-src/
 /hero-viewer/standalone/
+/generated_images/
+/hero-viewer-claude/

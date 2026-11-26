@@ -1,6 +1,42 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "dev", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev", "--", "--port", "5219", "--strictPort"], "port": 5219 }
+    {
+      "name": "dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5219",
+        "--strictPort"
+      ],
+      "port": 5219
+    },
+    {
+      "name": "hero-standalone",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "5230",
+        "-d",
+        "hero-viewer/standalone"
+      ],
+      "port": 5230
+    },
+    {
+      "name": "hero-claude",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "5231",
+        "-d",
+        "hero-viewer-claude/standalone"
+      ],
+      "port": 5231
+    }
   ]
 }
