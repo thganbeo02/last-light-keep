@@ -1,3 +1,5 @@
+import { HERO_ABILITIES } from './content/heroes.ts';
+
 // Pose the same voxel rig in battle and in the Almanac. Times are seconds.
 const ALDRIC = {
   slash: [
@@ -113,3 +115,36 @@ export function poseHero({ b, arms, legs }, hero, clip, time, strideWeight = 1) 
   legs[0].rotation.x = pose.left ?? 0;
   legs[1].rotation.x = pose.right ?? 0;
 }
+
+const ALDRIC_CLIPS = {
+  idle: { name: 'Idle', motion: 2.1, loop: 2.1 },
+  walk: { name: 'March', motion: Math.PI * .6, loop: Math.PI * .6 },
+  slash: { name: 'Sword slash', motion: .36, loop: 1.2 },
+  hurt: { name: 'Hit reaction', motion: .24, loop: 1 },
+  'rally-the-line': { name: HERO_ABILITIES['rally-the-line'].name, motion: 1, loop: 1.85 },
+  'shield-wall': { name: HERO_ABILITIES['shield-wall'].name, motion: 1, loop: 1.6 },
+  'the-gate-holds': { name: HERO_ABILITIES['the-gate-holds'].name, motion: 1.05, loop: 2.2 },
+  fall: { name: 'Defeat', motion: .66, loop: 1.7 },
+};
+const CORWIN_CLIPS = {
+  idle: ALDRIC_CLIPS.idle,
+  walk: { ...ALDRIC_CLIPS.walk, name: 'Walk' },
+  'ember-bolt': { name: 'Ember bolt', motion: .36, loop: 1.2 },
+  hurt: ALDRIC_CLIPS.hurt,
+  kindle: { name: HERO_ABILITIES.kindle.name, motion: .72, loop: 1.85 },
+  'ashen-ward': { name: HERO_ABILITIES['ashen-ward'].name, motion: .93, loop: 2.0 },
+  'undying-coal': { name: HERO_ABILITIES['undying-coal'].name, motion: 1.12, loop: 2.2 },
+  fall: { ...ALDRIC_CLIPS.fall, motion: .72 },
+};
+export const HERO_CLIPS = { aldric: ALDRIC_CLIPS, corwin: CORWIN_CLIPS };
+
+export const ALDRIC_V2_CLIPS = {
+  idle: 'Idle',
+  walk: 'March v2',
+  slash: 'Normal Attack',
+  hurt: 'Taking Damage',
+  'rally-the-line': 'Rally the Line',
+  'shield-wall': 'Shield Wall v2',
+  'the-gate-holds': 'The Gate Holds v2',
+  fall: 'Defeated',
+};

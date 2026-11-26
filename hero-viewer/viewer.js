@@ -2,20 +2,19 @@ import * as THREE from 'three';
 import { loadHeroModel } from '../src/hero-model.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import aldricAsset from './assets/aldric.glb?url';
-import corwinAsset from './assets/corwin.glb?url';
+import { ALDRIC_V2_CLIPS, HERO_CLIPS } from '../src/hero-animation.js';
+import { proceduralWorkshopModel } from './model-versions.js';
 import PATCHES from '../src/patches.json';
 
-const motionVersions = {
-  v1: ['March', 'Shield Wall', 'The Gate Holds'],
-  v2: ['March v2', 'Shield Wall v2', 'The Gate Holds v2'],
-};
+const clipLabels = { slash: 'Attack', hurt: 'Hit', fall: 'Defeated' };
+const looping = new Set(['idle', 'walk']);
 
 const refs = import.meta.glob('./assets/*.webp', { eager: true, query: '?url', import: 'default' });
-export function mountHeroWorkshop(root, { aldricPrototype = aldricAsset } = {}) {
-  let motionVersion = 'v2';
+export function mountHeroWorkshop(root, { back } = {}) {
+  let modelVersion = 'v2';
   const heroes = {
-    aldric: { name: 'Aldric Vane', title: 'The Last Captain', file: aldricPrototype, height: 669, head: 55, sheetHeight: 780, angles: [0,-26,-90,-180], offsets: [-12,-18,-26,2] },
-    corwin: { name: 'Corwin Ashguard', title: 'The Ember Warden', file: corwinAsset, height: 695, head: 52, sheetHeight: 800, angles: [0,-23,-90,-180], offsets: [16,35,46,-8] },
+    aldric: { name: 'Aldric Vane', title: 'The Last Captain', height: 669, head: 55, sheetHeight: 780, angles: [0,-26,-90,-180], offsets: [-12,-18,-26,2] },
+    corwin: { name: 'Corwin Ashguard', title: 'The Ember Warden', height: 695, head: 52, sheetHeight: 800, angles: [0,-23,-90,-180], offsets: [16,35,46,-8] },
   };
   const paths = {
     cube: '<path d="m12 2 9 5v10l-9 5-9-5V7zM3 7l9 5 9-5m-9 5v10"/>',
@@ -31,14 +30,12 @@ export function mountHeroWorkshop(root, { aldricPrototype = aldricAsset } = {}) 
   }
   const $ = (id) => root.getElementById(id);
   $('workshop-version').textContent = 'v' + PATCHES[0].v;
-  $('asset').hidden = root !== document;
-  const refURL = (id, preset) => refs['./assets/'+id+'-'+preset+'.webp'];
-  for (const id of Object.keys(heroes)) {
-    const portrait = $('portrait-'+id);
-    portrait.style.backgroundImage = 'url("'+refURL(id,0)+'")';
-    portrait.style.backgroundSize = '93px auto';
-    portrait.style.backgroundPosition = id === 'aldric' ? '51% -10px' : '45% -13px';
+  $('workshop-back').hidden = !back;
+  if (back) {
+    $('workshop-back').onclick = back;
+    $('workshop-back').focus();
   }
+  const refURL = (id, preset) => refs['./assets/'+id+'-'+preset+'.webp'];
 
   const stage = $('stage'), reference = $('reference');
   const viewNames = ['Front', 'Three-quarter', 'Side', 'Back'];
@@ -68,7 +65,8 @@ export function mountHeroWorkshop(root, { aldricPrototype = aldricAsset } = {}) 
 
   const camera = new THREE.OrthographicCamera(-1,1,1,-1,.01,30);
   let renderer, controls, model, canvasWidth=0, canvasHeight=0;
-  let mixer, action, selectedMotion='';
+  let mixer, action, clips, selectedMotion='idle', request = 0;
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   const frameRate=30;
   const frameSlider=$('motion-frame');
   function updateFrame(){
@@ -95,19 +93,21 @@ export function mountHeroWorkshop(root, { aldricPrototype = aldricAsset } = {}) 
   frameSlider.oninput=()=>seekFrame(Number(frameSlider.value));
   $('previous-frame').onclick=()=>seekFrame(Number(frameSlider.value)-1);
   $('next-frame').onclick=()=>seekFrame(Number(frameSlider.value)+1);
-  function playMotion() {
+  function playMotion(paused = false) {
     mixer.stopAllAction();
     action=null;
     const name=selectedMotion;
     for(const button of $('motion').children) button.setAttribute('aria-pressed',button.dataset.clip===name);
-    if(name){
-      action=mixer.clipAction(THREE.AnimationClip.findByName(model.animations,name)).reset();
-      if(name!=='Idle' && name!=='March' && name!=='March v2') action.setLoop(THREE.LoopOnce,1);
-      action.clampWhenFinished=true;
+    if (clips.has(name)) {
+      action = mixer.clipAction(clips.get(name)).reset();
+      if (!looping.has(name)) action.setLoop(THREE.LoopOnce, 1);
+      action.clampWhenFinished = true;
       action.play();
+      action.paused = paused;
+      mixer.update(0);
     }
     $('play-motion').disabled=$('replay-motion').disabled=!action;
-    $('play-motion').textContent='Pause';
+    $('play-motion').textContent = paused ? 'Play' : 'Pause';
     updateFrame();
     resize();
   }
@@ -117,27 +117,18 @@ export function mountHeroWorkshop(root, { aldricPrototype = aldricAsset } = {}) 
     selectedMotion=button.dataset.clip;
     playMotion();
   };
-  function renderMotionVersions() {
-    const other = motionVersions[motionVersion === 'v1' ? 'v2' : 'v1'];
-    for (const button of $('motion-versions').children) {
-      button.setAttribute('aria-pressed', button.dataset.version === motionVersion);
-    }
-    $('motion').replaceChildren(...['', ...model.animations.map(c=>c.name).filter(name=>!other.includes(name))].map(name=>{
-      const b=document.createElement('button');
-      b.type='button';b.dataset.clip=name;b.textContent=name||'Reference pose';
-      return b;
+  function renderClips() {
+    const ordered = ['idle', 'walk', hero === 'aldric' ? 'slash' : 'ember-bolt', 'hurt', 'fall',
+      ...Object.keys(HERO_CLIPS[hero]).filter(key => !['idle', 'walk', 'slash', 'ember-bolt', 'hurt', 'fall'].includes(key))];
+    $('motion').replaceChildren(...ordered.filter(key => clips.has(key)).map(key => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.clip = key;
+      button.textContent = clipLabels[key] ?? HERO_CLIPS[hero][key].name;
+      return button;
     }));
   }
-  $('motion-versions').onclick=e=>{
-    const version=e.target.closest('button')?.dataset.version;
-    if (!version || version===motionVersion) return;
-    const index=motionVersions[motionVersion].indexOf(selectedMotion);
-    if (index!==-1) selectedMotion=motionVersions[version][index];
-    motionVersion=version;
-    renderMotionVersions();
-    playMotion();
-  };
-  $('replay-motion').onclick=playMotion;
+  $('replay-motion').onclick=()=>playMotion();
   $('play-motion').onclick=()=>{
     if(!action) return;
     if(action.paused && action.time>=action.getClip().duration){
@@ -168,8 +159,7 @@ export function mountHeroWorkshop(root, { aldricPrototype = aldricAsset } = {}) 
     if(stage.clientWidth!==canvasWidth || stage.clientHeight!==canvasHeight){
       renderer.setSize(w,h,false); canvasWidth=w; canvasHeight=h;
     }
-    const clipName=action?.getClip().name;
-    const actionRoom=['Rally the Line','Normal Attack','Defeated'].includes(clipName) ? 1.30 : 1;
+    const actionRoom = ['rally-the-line', 'slash', 'fall'].includes(selectedMotion) ? 1.30 : 1;
     const span = actionRoom*Math.max(1.8/.82, 1.38*h/w);
     camera.top=span/2; camera.bottom=-span/2;
     camera.right=span*w/h/2; camera.left=-camera.right;
@@ -203,49 +193,63 @@ export function mountHeroWorkshop(root, { aldricPrototype = aldricAsset } = {}) 
     camera.position.copy(controls.target).addScaledVector(look.set(sx,0,cx),4);
     controls.update(); resize();
   }
-  async function selectHero(id) {
-    hero=id;
-    const data=heroes[id];
-    $('hero-name').textContent=data.name; $('hero-title').textContent=data.title;
-    $('asset').href=data.file; $('asset').download=data.name+'.glb';
-    for (const b of root.querySelectorAll('button[data-hero]')) b.setAttribute('aria-pressed',b.dataset.hero===id);
-    action=null;
-    if(mixer){mixer.stopAllAction();mixer.uncacheRoot(model);mixer=null;}
-    $('motion-bar').hidden=true;
-    $('motion-versions').hidden=true;
+  async function selectModel(id, version, resetCamera = false) {
+    const currentRequest = ++request;
+    const sameHero = hero === id;
+    hero = id;
+    modelVersion = version;
+    const data = heroes[id];
+    const file = id === 'aldric' && version === 'v2' ? aldricAsset : null;
+    const key = id + ':' + version;
+    const wanted = sameHero ? selectedMotion : 'idle';
+    const paused = action?.paused ?? reducedMotion.matches;
+    $('hero-select').value = id;
+    $('motion-heading').textContent = 'Animations for ' + version;
+    $('asset').hidden = !file || !!back;
+    if (file) { $('asset').href = file; $('asset').download = data.name + ' ' + version + '.glb'; }
+    for (const button of root.querySelectorAll('[data-version]')) {
+      button.setAttribute('aria-pressed', button.dataset.version === version);
+    }
+    action = null;
+    if (mixer) { mixer.stopAllAction(); mixer.uncacheRoot(model); mixer = null; }
+    $('motion-bar').hidden = true;
     if (model) scene.remove(model);
-    model=null;
-    selectPreset(preset);
+    model = null;
+    if (resetCamera || !sameHero) selectPreset(preset);
     if (!renderer) return;
-    $('status').textContent='Loading model…';
+    $('status').textContent = 'Loading model…';
     try {
-      if (!cache.has(id)) cache.set(id,loadHeroModel(data.file));
-      const loaded=await cache.get(id);
-      if (hero!==id) return;
-      model=loaded.scene; scene.add(model);
-      if(loaded.animations.length){
-        model.animations=loaded.animations;
-        mixer=new THREE.AnimationMixer(model);
-        mixer.addEventListener('finished',()=>{
-          $('play-motion').textContent='Resume';
-          updateFrame();
-        });
-        $('motion-versions').hidden=!motionVersions.v2.every(name=>model.animations.some(c=>c.name===name));
-        renderMotionVersions();
-        selectedMotion=!matchMedia('(prefers-reduced-motion: reduce)').matches && loaded.animations.some(c=>c.name==='Idle') ? 'Idle' : '';
-        $('motion-bar').hidden=false;
-        playMotion();
+      if (!cache.has(key)) cache.set(key, file
+        ? loadHeroModel(file)
+        : Promise.resolve(proceduralWorkshopModel(id, version)));
+      const loaded = await cache.get(key);
+      if (request !== currentRequest) return;
+      model = loaded.scene;
+      scene.add(model);
+      clips = new Map(loaded.animations.map(clip => [clip.name, clip]));
+      if (file) {
+        clips = new Map(Object.entries(ALDRIC_V2_CLIPS).map(([action, name]) => [action, clips.get(name)]).filter(([, clip]) => clip));
       }
-      $('status').textContent=''; selectPreset(preset);
+      mixer = new THREE.AnimationMixer(model);
+      mixer.addEventListener('finished', () => {
+        $('play-motion').textContent = 'Play';
+        updateFrame();
+      });
+      selectedMotion = clips.has(wanted) ? wanted : 'idle';
+      renderClips();
+      $('motion-bar').hidden = clips.size === 0;
+      playMotion(paused);
+      $('status').textContent = '';
+      resize();
     } catch (err) {
-      cache.delete(id);
-      if(hero===id) $('status').textContent='Model loading failed. Select the hero to retry.';
+      cache.delete(key);
+      if (request === currentRequest) $('status').textContent = 'Model loading failed. Select the version to retry.';
       console.error(err);
     }
   }
   function init() {
     try { renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:"low-power"}); }
-    catch { $('status').textContent='This viewer needs WebGL. Download the GLB to open the model locally.'; return; }
+    catch { $('status').textContent='This viewer needs WebGL. Download a GLB to open a model locally.'; return; }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
     stage.append(renderer.domElement);
     controls=new OrbitControls(camera,renderer.domElement);
@@ -271,7 +275,7 @@ export function mountHeroWorkshop(root, { aldricPrototype = aldricAsset } = {}) 
       if (!dirty && !spin) return;
       if(spin) controls.update(dt);
       look.copy(camera.position).sub(controls.target).normalize();
-      const fallen=action?.getClip().name==='Defeated'
+      const fallen=action && selectedMotion === 'fall'
         ? THREE.MathUtils.smoothstep(action.time,.48,.86) : 0;
       shadow.position.set(-look.x*.53,.003,-look.z*.53-.53*fallen);
       shadow.scale.set(1.26+.85*Math.abs(look.x)*fallen,.06,1);
@@ -281,7 +285,12 @@ export function mountHeroWorkshop(root, { aldricPrototype = aldricAsset } = {}) 
       renderer.render(scene,camera); dirty=false;
   }
   init();
-  for(const b of root.querySelectorAll('button[data-hero]')) b.onclick=()=>selectHero(b.dataset.hero);
+  $('hero-select').onchange = e => void selectModel(e.target.value, modelVersion);
+  for (const button of root.querySelectorAll('[data-version]')) {
+    button.onclick = () => {
+      if (button.dataset.version !== modelVersion || !model) void selectModel(hero, button.dataset.version);
+    };
+  }
   for(const b of root.querySelectorAll('[data-view]')) b.onclick=()=>selectPreset(+b.dataset.view);
   $('plus').onclick=()=>setZoom(camera.zoom*1.2);
   $('minus').onclick=()=>setZoom(camera.zoom/1.2);
@@ -302,9 +311,8 @@ export function mountHeroWorkshop(root, { aldricPrototype = aldricAsset } = {}) 
   };
   return {
     show(initialHero, version) {
-      motionVersion = version === 'v1' ? 'v1' : 'v2';
       renderer?.setAnimationLoop(draw);
-      void selectHero(initialHero === 'corwin' ? 'corwin' : 'aldric');
+      void selectModel(initialHero === 'corwin' ? 'corwin' : 'aldric', version === 'v1' ? 'v1' : 'v2', !model);
     },
     hide() {
       renderer?.setAnimationLoop(null);

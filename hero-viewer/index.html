@@ -3,40 +3,46 @@
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#202623"><title>Hero Workshop · Last Light Keep</title></head>
 <body>
 <header class="mast">
-  <div class="brand"><svg class="seal" viewBox="0 0 40 46" aria-hidden="true"><path fill="none" stroke="currentColor" d="M2 2h36v27c0 6-10 12-18 15C12 41 2 35 2 29Z"/><path fill="currentColor" d="M10 31h20l-2-13h-4v4h-2v-4h-4v4h-2v-4h-4zm8 0v-5a2 2 0 0 1 4 0v5zm-3-17h10l-2 4h-6zm5-10c-1 4-5 6-5 9h10c0-3-2-4-3-6l-1 4z"/></svg><span>Last Light Keep</span></div>
-  <span class="mast-line"></span><span class="workshop">Hero workshop <span id="workshop-version"></span></span>
-  <span class="mast-end"><i data-icon="cube"></i> Model viewer</span>
+  <span class="brand">Last Light Keep</span>
+  <span class="mast-line" aria-hidden="true"></span>
+  <h1>Hero Workshop <small id="workshop-version"></small></h1>
+  <button type="button" id="workshop-back" hidden>← Back to Almanac</button>
 </header>
 <main>
-  <section class="intro" aria-label="Hero selection">
-    <div><div class="eyebrow"><span></span> Hero collection</div><h1 id="hero-name">Aldric Vane</h1><div class="subtitle" id="hero-title">The Last Captain</div></div>
-    <div class="selector" role="group" aria-label="Select a hero">
-      <button data-hero="aldric" aria-pressed="true"><span class="portrait" id="portrait-aldric"></span><span>Aldric Vane</span></button>
-      <button data-hero="corwin" aria-pressed="false"><span class="portrait" id="portrait-corwin"></span><span>Corwin Ashguard</span></button>
+  <section class="selection" aria-label="Hero model selection">
+    <label for="hero-select">Hero</label>
+    <select id="hero-select">
+      <option value="aldric">Aldric Vane</option>
+      <option value="corwin">Corwin Ashguard</option>
+    </select>
+    <div class="model-versions" role="group" aria-labelledby="model-versions-label">
+      <span id="model-versions-label">Model version</span>
+      <button type="button" data-version="v1" aria-pressed="false">v1 · Original</button>
+      <button type="button" data-version="v2" aria-pressed="true">v2 · Revised</button>
     </div>
   </section>
   <section class="bench" aria-label="Model and reference comparison">
     <div class="panels">
-      <section class="panel live"><div class="panel-label"><i data-icon="cube"></i> Live model</div><div class="stage" id="stage" tabindex="0" aria-label="Interactive model. Drag or use arrow keys to rotate. Scroll or use plus and minus to zoom. Shift-drag to pan."></div><div class="panel-note"><i data-icon="rotate"></i> Drag to rotate <span class="mouse-hint">· Shift-drag to pan</span><span class="touch-hint">· Pinch to zoom</span></div><span id="status" role="status"></span></section>
-      <section class="panel ref"><div class="panel-label"><i data-icon="sheet"></i> Reference</div><div class="stage" id="reference-stage"><img id="reference" alt=""></div><div class="sheet-note" id="sheet-note">Front view</div></section>
-    </div>
-    <div class="motion-bar" id="motion-bar" hidden>
-      <div id="motion-versions" role="group" aria-label="Animation version" hidden><button type="button" data-version="v1">Motion v1</button> <button type="button" data-version="v2">Motion v2</button></div>
-      <div id="motion" role="group" aria-label="Animation"></div>
-      <button id="play-motion" type="button">Pause</button><button id="replay-motion" type="button">Replay</button>
-      <div class="frame-controls" role="group" aria-label="Frame inspection">
-        <button id="previous-frame" type="button" aria-label="Previous frame">−1 frame</button>
-        <input id="motion-frame" type="range" aria-label="Animation frame" min="0" max="0" value="0">
-        <button id="next-frame" type="button" aria-label="Next frame">+1 frame</button>
-        <output id="frame-label" for="motion-frame">Frame —</output>
-      </div>
+      <section class="panel live"><div class="panel-label"><i data-icon="cube"></i> Interactive model</div><div class="stage" id="stage" tabindex="0" aria-label="Interactive model. Drag or use arrow keys to rotate. Scroll or use plus and minus to zoom. Shift-drag to pan."></div><div class="panel-note"><i data-icon="rotate"></i> Drag to rotate <span class="mouse-hint">· Shift-drag to pan</span><span class="touch-hint">· Pinch to zoom</span></div><span id="status" role="status"></span></section>
+      <section class="panel ref"><div class="panel-label"><i data-icon="sheet"></i> Reference art</div><div class="stage" id="reference-stage"><img id="reference" alt=""></div><div class="sheet-note" id="sheet-note">Front view</div></section>
     </div>
     <div class="toolbar">
-      <div class="presets" role="group" aria-label="Camera presets"><button data-view="0" aria-pressed="true">Front</button><button data-view="1" aria-pressed="false">Three-quarter</button><button data-view="2" aria-pressed="false">Side</button><button data-view="3" aria-pressed="false">Back</button></div>
-      <div class="tools"><button id="spin" aria-pressed="false"><i data-icon="spin"></i> Spin</button><span class="divider"></span><div class="zoom"><button id="minus" aria-label="Zoom out"><i data-icon="minus"></i></button><output id="zoom-level">100%</output><button id="plus" aria-label="Zoom in"><i data-icon="plus"></i></button></div><button class="icon-only" id="reset" aria-label="Reset camera" title="Reset camera"><i data-icon="reset"></i></button></div>
+      <div class="presets" role="group" aria-label="Camera presets"><button data-view="0" aria-pressed="true">Front</button><button data-view="1" aria-pressed="false" aria-label="Three-quarter">¾</button><button data-view="2" aria-pressed="false">Side</button><button data-view="3" aria-pressed="false">Back</button></div>
+      <div class="tools"><button id="spin" aria-pressed="false"><i data-icon="spin"></i> Spin</button><span class="divider"></span><div class="zoom"><button id="minus" aria-label="Zoom out"><i data-icon="minus"></i></button><output id="zoom-level">100%</output><button id="plus" aria-label="Zoom in"><i data-icon="plus"></i></button></div><button id="reset" aria-label="Reset camera">Reset</button></div>
     </div>
   </section>
-  <footer><span><span class="dot"></span> <span id="camera-label" aria-live="polite">Front camera</span></span><a id="asset" href="#" download><i data-icon="download"></i> Download model <small>GLB</small></a></footer>
+  <section class="motion-bar" id="motion-bar" aria-labelledby="motion-heading" hidden>
+    <h2 id="motion-heading">Animations</h2>
+    <div id="motion" role="group" aria-label="Actions"></div>
+    <div class="frame-controls" role="group" aria-label="Frame inspection">
+      <button id="play-motion" type="button">Pause</button><button id="replay-motion" type="button">Replay</button>
+      <button id="previous-frame" type="button" aria-label="Previous frame">−1 frame</button>
+      <input id="motion-frame" type="range" aria-label="Animation frame" min="0" max="0" value="0">
+      <button id="next-frame" type="button" aria-label="Next frame">+1 frame</button>
+      <output id="frame-label" for="motion-frame">Frame —</output>
+    </div>
+  </section>
+  <footer><span id="camera-label" aria-live="polite">Front camera</span><a id="asset" href="#" download hidden><i data-icon="download"></i> Download model <small>GLB</small></a></footer>
 </main>
 <script type="module" src="./standalone.js"></script>
 </body></html>

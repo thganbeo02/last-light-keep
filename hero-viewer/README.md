@@ -1,10 +1,10 @@
 # Last Light Keep hero workshop
 
-Open [the standalone viewer](standalone/index.html) directly in a WebGL-capable browser. It includes both models, all eight reference views and the renderer. It works offline.
+Open [the standalone viewer](standalone/index.html) directly in a WebGL-capable browser. It includes the original and revised models for both heroes, all eight reference views and the renderer. It works offline.
 
 Select a hero and camera angle to compare the model with its corresponding view at the same displayed height. Drag or use the arrow keys to rotate. Scroll or pinch to zoom, and Shift-drag or use two fingers to pan. Spin orbits the model. Reset restores the current preset and 100% zoom.
 
-## Assets and comparisons
+## Exported assets and archived comparisons
 
 | Hero | glTF 2.0 asset | Model and reference |
 | --- | --- | --- |
@@ -26,7 +26,7 @@ The comparison sheets pair actual browser renders with crops of the supplied art
 
 From the repository root, run `npm run dev` and open `/hero-viewer/`. To rebuild only the offline viewer, run `npx vite build --config hero-viewer/vite.config.js`. Its output is `hero-viewer/standalone/index.html`.
 
-The game’s Almanac opens the same workshop at full size, with the current release number and the selected hero and motion version. In the standalone viewer, use `?hero=corwin` to start on Corwin or `?motion=v1` to start on Aldric’s original motion clips.
+The local game’s Almanac opens the same workshop at full size and carries over the selected hero and model version. In the standalone viewer, use `?hero=corwin&version=v1` to start on the original Corwin model.
 
 The model sources are in `authoring/`. From this directory, run `python3 -B -m authoring.export /path/to/aldric-sheet.png /path/to/corwin-sheet.png` with NumPy and Pillow installed. Use the original 1774 × 887 sheets. The exporter builds each mesh in sheet coordinates, bakes separate material finishes and wear for each mesh into a UV atlas, and writes the GLBs and reference crops into `assets/`. The sheets are in `docs/art/` at the repository root.
 
@@ -41,6 +41,6 @@ Historical measurements for the previous projected-paint bake follow.
 | Aldric, silhouette / paint | 95.5% / 95.8% | 89.0% / 75.8% | 92.3% / 86.4% | 93.5% / 92.5% |
 | Corwin, silhouette / paint | 93.9% / 95.9% | 86.8% / 73.2% | 91.2% / 88.9% | 90.4% / 96.7% |
 
-## Aldric’s animations
+## Animations
 
-Use the buttons beneath the models to preview Idle, March, March v2, Rally the Line, Shield Wall, Shield Wall v2, The Gate Holds, The Gate Holds v2, Normal Attack, Taking Damage, or Defeated. Idle and both marches loop. The comparison pane shows the static reference sheet for the selected camera preset. Each skill plays once and holds its final frame. The scrubber and frame buttons pause playback and sample the clip at 30 frames per second. Pause holds the current pose, Replay starts the selected clip again, and Reference pose restores the original stance. The downloadable Aldric GLB includes all eleven clips, articulated armor, the rally standard, and the spectral gate.
+Select a model version above the preview. The actions below the preview play on that model. Switching versions preserves the camera and selected action when both versions support it. Idle, March and Walk loop. Other actions play once and hold the last frame. The scrubber and frame buttons pause playback and sample the clip at 30 frames per second. The standalone viewer can download the authored Aldric v2 GLB.

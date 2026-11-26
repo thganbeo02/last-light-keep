@@ -6,6 +6,8 @@
 - Added a versioned full-size Hero Workshop to both Almanac pages. It opens on the selected hero and carries over Aldric’s motion version, with reference art, camera presets, zoom and frame stepping. The standalone workshop remains available offline. Corwin’s workshop model is a static pose.
 - Verified with all 123 tests, TypeScript, the single-file game build, the standalone workshop build, and Git whitespace checks. Chromium verified both workshop links, Aldric’s motion switch and frame stepping, Escape navigation, and Shield Wall in battle. The game build is 14.7 MB.
 - Fixed Claude hosting compatibility by mounting the workshop in the game document and decoding inline models and textures without network requests. Chromium also verified both models under a policy that blocks network requests and frames.
+- Moved the Hero Workshop and model comparison to local development. The standalone viewer and local Almanac now switch between the original and revised models for both heroes. The workshop plays each model’s actions and preserves the camera on version switches. The production build keeps one release model per hero and updates the 3.4 patch notes.
+- Renamed the release to 3.4 Hero Model Update and dropped Corwin from its notes, as only Aldric's model changed. Patch notes show hero portraits through a new `he:<hero>` icon key. Verified with `npm test` (123 tests), `npm run typecheck`, `npm run build` (8.8 MB) and the patch notes in Chrome; published as artifact version 60.
 
 ## 2026-11-25 — 3.3 Captain and Coal
 
