@@ -74,7 +74,7 @@ def bake(hero,source):
         uv-=uv.min(axis=0)
         uvlocal.append(uv+2.5)
         sizes.append(np.ceil(uv.max(axis=0)).astype(int)+6)
-    width=2048
+    width=4096 if hero=='corwin' else 2048
     locations=[None]*len(tris)
     x=y=row=0
     for i in sorted(range(len(tris)),key=lambda i:-sizes[i][1]):
@@ -161,7 +161,10 @@ def glb(hero,cfg,tris,uvs,owners,jpg):
     if hero=="aldric":
         from .motion import animate
         animate(doc,mesh.parts,positions,attribute)
-        doc["buffers"][0]["byteLength"]=len(data)
+    else:
+        from .corwin_motion import animate
+        animate(doc,mesh.parts,cfg,attribute)
+    doc["buffers"][0]["byteLength"]=len(data)
     meta=json.dumps(doc,separators=(',',':')).encode()
     meta+=b' '*(-len(meta)%4); data+=b'\0'*(-len(data)%4)
     out=struct.pack('<4sII',b'glTF',2,28+len(meta)+len(data))+struct.pack('<I4s',len(meta),b'JSON')+meta+struct.pack('<I4s',len(data),b'BIN\0')+data
@@ -172,4 +175,7 @@ def glb(hero,cfg,tris,uvs,owners,jpg):
     (ASSETS/f'{hero}.glb').write_bytes(out)
 
 if __name__=='__main__':
-    for hero,path in zip(CFG,sys.argv[1:],strict=True): bake(hero,path)
+    if len(sys.argv)==4 and sys.argv[1]=='--hero':
+        bake(sys.argv[2],sys.argv[3])
+    else:
+        for hero,path in zip(CFG,sys.argv[1:],strict=True): bake(hero,path)

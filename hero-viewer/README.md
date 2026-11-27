@@ -43,4 +43,6 @@ Historical measurements for the previous projected-paint bake follow.
 
 ## Animations
 
-Select a model version above the preview. The actions below the preview play on that model. Switching versions preserves the camera and selected action when both versions support it. Idle, March and Walk loop. Other actions play once and hold the last frame. The scrubber and frame buttons pause playback and sample the clip at 30 frames per second. The standalone viewer can download the authored Aldric v2 GLB.
+Select a model version above the preview. The actions below the preview play on that model. Switching versions preserves the camera and selected action when both versions support it. Idle, March and Walk loop. Other actions play once and hold the last frame. The scrubber and frame buttons pause playback and sample the clip at 30 frames per second. The standalone viewer can download both revised GLBs.
+
+Corwin v2’s lantern hangs independently of his wrist. In Kindle he sweeps a low ember into a line of ground fires. In Ashen Ward he raises the lantern and sends cinders to the tower as the ward forms. In Undying Coal he gathers heat, lifts the lantern, and triggers three staggered eruptions. To rebuild just Corwin, run `python3 -B -m authoring.export --hero corwin ../docs/art/corwin-sheet.jpg` from this directory.

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-27 — 3.5 Corwin Ashguard Remodeled
+
+- Put Corwin’s revised model and nine animations into battle and the Almanac. Ranged and melee auto attacks have separate poses. When defeated, his head slumps to the ground and his lantern drops before the model sinks.
+- The local Hero Workshop keeps both model versions and adds a shadowed floor for inspecting ground contact.
+- Published the 14.93 MB Corwin-only build to the existing Claude artifact as revision 64. The release snapshot passed all 123 tests, typecheck and browser checks for attacks, casts, defeat, respawn and an older save. The signed-in artifact showed patch 3.5, Corwin’s Almanac and existing campaign progress. The signed-out preview prompted for sign-in.
+- Verified the combined checkout with all 129 tests, typecheck, a single-file build and `git diff --check`.
+
 ## 2026-11-27 — Hero kits and simulator
 
 - Hero skills cast themselves, as in Kingdom Rush: the player only moves the hero. Each hero keeps a passive and three skills, each with a trigger in `src/content/heroes.ts` (enemies close in, low health, enough burning). The HUD shows recharge and charge instead of casting, and Q/W/E no longer cast.

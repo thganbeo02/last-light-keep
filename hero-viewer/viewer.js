@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { loadHeroModel } from '../src/hero-model.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import aldricAsset from './assets/aldric.glb?url';
+import corwinAsset from './assets/corwin.glb?url';
 import { ALDRIC_V2_CLIPS, HERO_CLIPS } from '../src/hero-animation.js';
 import { proceduralWorkshopModel } from './model-versions.js';
 import PATCHES from '../src/patches.json';
@@ -44,24 +45,21 @@ export function mountHeroWorkshop(root, { back } = {}) {
   scene.add(new THREE.AmbientLight(0xfffcf7, 2.62));
   const key = new THREE.DirectionalLight(0xfff3de,.64);
   key.position.set(-3,5,4); scene.add(key);
+  key.castShadow = true;
+  key.shadow.mapSize.set(1024, 1024);
+  key.shadow.normalBias = .015;
   const fill = new THREE.DirectionalLight(0xe4ecff,.38);
   fill.position.set(3,2,-4); scene.add(fill);
 
-  const shadowImage = document.createElement('canvas');
-  shadowImage.width = shadowImage.height = 128;
-  const ctx = shadowImage.getContext('2d'), grad = ctx.createRadialGradient(64,64,0,64,64,64);
-  grad.addColorStop(0,'rgba(48,40,34,.24)'); grad.addColorStop(.5,'rgba(48,40,34,.14)'); grad.addColorStop(1,'rgba(48,40,34,0)');
-  ctx.fillStyle = grad; ctx.fillRect(0,0,128,128);
-  const shadow = new THREE.Sprite(new THREE.SpriteMaterial({ map:new THREE.CanvasTexture(shadowImage), depthWrite:false }));
-  shadow.renderOrder=-1; scene.add(shadow);
-  const fallenShadow=new THREE.Mesh(new THREE.PlaneGeometry(1.28,2.32),new THREE.MeshBasicMaterial({
-    map:shadow.material.map,transparent:true,depthWrite:false,side:THREE.DoubleSide,
-  }));
-  fallenShadow.position.set(0,.002,-.47);
-  fallenShadow.rotation.x=-Math.PI/2;
-  fallenShadow.renderOrder=-1;
-  fallenShadow.visible=false;
-  scene.add(fallenShadow);
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(6, .10, 6),
+    new THREE.MeshStandardMaterial({ color: 0x74675a, roughness: 1 }));
+  floor.position.y = -.05;
+  floor.receiveShadow = true;
+  const grid = new THREE.GridHelper(6, 12, 0x4e4439, 0x4e4439);
+  grid.position.y = .002;
+  grid.material.transparent = true;
+  grid.material.opacity = .26;
+  scene.add(floor, grid);
 
   const camera = new THREE.OrthographicCamera(-1,1,1,-1,.01,30);
   let renderer, controls, model, canvasWidth=0, canvasHeight=0;
@@ -118,8 +116,8 @@ export function mountHeroWorkshop(root, { back } = {}) {
     playMotion();
   };
   function renderClips() {
-    const ordered = ['idle', 'walk', hero === 'aldric' ? 'slash' : 'ember-bolt', 'hurt', 'fall',
-      ...Object.keys(HERO_CLIPS[hero]).filter(key => !['idle', 'walk', 'slash', 'ember-bolt', 'hurt', 'fall'].includes(key))];
+    const basics = ['idle', 'walk', 'slash', 'ember-bolt', 'close-attack', 'hurt', 'fall'];
+    const ordered = [...basics, ...Object.keys(HERO_CLIPS[hero]).filter(key => !basics.includes(key))];
     $('motion').replaceChildren(...ordered.filter(key => clips.has(key)).map(key => {
       const button = document.createElement('button');
       button.type = 'button';
@@ -141,6 +139,7 @@ export function mountHeroWorkshop(root, { back } = {}) {
   let dirty=true;
   let hero = 'aldric', preset = 0, free = false, selectedZoom = 1, spin = false;
   const look = new THREE.Vector3(), frameCenter = new THREE.Vector3();
+  const elevation = Math.PI / 15;
   function setSpin(on) {
     spin = on;
     if (controls) controls.autoRotate = on;
@@ -159,7 +158,8 @@ export function mountHeroWorkshop(root, { back } = {}) {
     if(stage.clientWidth!==canvasWidth || stage.clientHeight!==canvasHeight){
       renderer.setSize(w,h,false); canvasWidth=w; canvasHeight=h;
     }
-    const actionRoom = ['rally-the-line', 'slash', 'fall'].includes(selectedMotion) ? 1.30 : 1;
+    const actionRoom = ['rally-the-line', 'slash', 'fall'].includes(selectedMotion) ? 1.30
+      : hero === 'corwin' && modelVersion === 'v2' && !looping.has(selectedMotion) ? 1.24 : 1;
     const span = actionRoom*Math.max(1.8/.82, 1.38*h/w);
     camera.top=span/2; camera.bottom=-span/2;
     camera.right=span*w/h/2; camera.left=-camera.right;
@@ -190,7 +190,8 @@ export function mountHeroWorkshop(root, { back } = {}) {
     const offset=data.offsets[i]*1.8/data.height;
     frameCenter.set(cx*offset,.9,-sx*offset);
     controls.target.copy(frameCenter);
-    camera.position.copy(controls.target).addScaledVector(look.set(sx,0,cx),4);
+    camera.position.copy(controls.target).addScaledVector(
+      look.set(sx * Math.cos(elevation), Math.sin(elevation), cx * Math.cos(elevation)), 4);
     controls.update(); resize();
   }
   async function selectModel(id, version, resetCamera = false) {
@@ -199,7 +200,7 @@ export function mountHeroWorkshop(root, { back } = {}) {
     hero = id;
     modelVersion = version;
     const data = heroes[id];
-    const file = id === 'aldric' && version === 'v2' ? aldricAsset : null;
+    const file = version === 'v2' ? (id === 'aldric' ? aldricAsset : corwinAsset) : null;
     const key = id + ':' + version;
     const wanted = sameHero ? selectedMotion : 'idle';
     const paused = action?.paused ?? reducedMotion.matches;
@@ -225,9 +226,12 @@ export function mountHeroWorkshop(root, { back } = {}) {
       const loaded = await cache.get(key);
       if (request !== currentRequest) return;
       model = loaded.scene;
+      model.traverse(part => {
+        if (part.isMesh) part.castShadow = !part.material.transparent;
+      });
       scene.add(model);
       clips = new Map(loaded.animations.map(clip => [clip.name, clip]));
-      if (file) {
+      if (file && id === 'aldric') {
         clips = new Map(Object.entries(ALDRIC_V2_CLIPS).map(([action, name]) => [action, clips.get(name)]).filter(([, clip]) => clip));
       }
       mixer = new THREE.AnimationMixer(model);
@@ -251,18 +255,20 @@ export function mountHeroWorkshop(root, { back } = {}) {
     try { renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:"low-power"}); }
     catch { $('status').textContent='This viewer needs WebGL. Download a GLB to open a model locally.'; return; }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     stage.append(renderer.domElement);
     controls=new OrbitControls(camera,renderer.domElement);
     controls.enablePan=true; controls.zoomToCursor=true; controls.enableDamping=false; controls.autoRotateSpeed=1.35;
     controls.minZoom=.55; controls.maxZoom=3.5;
-    controls.minPolarAngle=.08; controls.maxPolarAngle=Math.PI-.08;
+    controls.minPolarAngle=.08; controls.maxPolarAngle=Math.PI/2-.04;
     controls.addEventListener('change',()=>{
       selectedZoom=camera.zoom;
       camera.updateMatrixWorld();
       resize();
       if(model && !free){
         const expected=THREE.MathUtils.degToRad(heroes[hero].angles[preset]);
-        if(Math.abs(Math.sin((controls.getAzimuthalAngle()-expected)/2))>.001 || Math.abs(controls.getPolarAngle()-Math.PI/2)>.001) label(true);
+        if(Math.abs(Math.sin((controls.getAzimuthalAngle()-expected)/2))>.001 || Math.abs(controls.getPolarAngle()-(Math.PI/2-elevation))>.001) label(true);
       }
     });
     controls.addEventListener('start',()=>setSpin(false));
@@ -274,14 +280,6 @@ export function mountHeroWorkshop(root, { back } = {}) {
       if(action && !action.paused){mixer.update(dt);updateFrame();dirty=true;}
       if (!dirty && !spin) return;
       if(spin) controls.update(dt);
-      look.copy(camera.position).sub(controls.target).normalize();
-      const fallen=action && selectedMotion === 'fall'
-        ? THREE.MathUtils.smoothstep(action.time,.48,.86) : 0;
-      shadow.position.set(-look.x*.53,.003,-look.z*.53-.53*fallen);
-      shadow.scale.set(1.26+.85*Math.abs(look.x)*fallen,.06,1);
-      shadow.material.opacity=1-fallen*Math.min(1,Math.abs(look.y)*4);
-      fallenShadow.visible=fallen>0;
-      fallenShadow.material.opacity=fallen;
       renderer.render(scene,camera); dirty=false;
   }
   init();

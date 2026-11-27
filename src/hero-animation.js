@@ -46,6 +46,13 @@ const CORWIN = {
     [.16, { leftArm: -1.38, rightArm: -.38, turn: .24, pitch: .17, forward: .09 }],
     [.36, { rightArm: -.32 }],
   ],
+  'close-attack': [
+    [0, { rightArm: -.32 }],
+    [.07, { pitch: -.24, forward: -.10, lift: -.04, leftArm: -.4, rightArm: -.5 }],
+    [.15, { pitch: -.19, forward: -.08, lift: -.035, leftArm: -1.16, rightArm: -.42, turn: .13 }],
+    [.23, { pitch: -.10, forward: -.04, leftArm: -.78, rightArm: -.38 }],
+    [.36, { rightArm: -.32 }],
+  ],
   hurt: [
     [0, { rightArm: -.32 }],
     [.07, { pitch: -.26, turn: -.22, leftArm: .5, rightArm: -1.02, forward: -.13 }],
@@ -129,7 +136,8 @@ const ALDRIC_CLIPS = {
 const CORWIN_CLIPS = {
   idle: ALDRIC_CLIPS.idle,
   walk: { ...ALDRIC_CLIPS.walk, name: 'Walk' },
-  'ember-bolt': { name: 'Ember bolt', motion: .36, loop: 1.2 },
+  'ember-bolt': { name: 'Auto Attack (Ranged)', motion: .36, loop: 1.2 },
+  'close-attack': { name: 'Auto Attack (Melee)', motion: .36, loop: 1.2 },
   hurt: ALDRIC_CLIPS.hurt,
   kindle: { name: HERO_ABILITIES.kindle.name, motion: .72, loop: 1.85 },
   'ashen-ward': { name: HERO_ABILITIES['ashen-ward'].name, motion: .93, loop: 2.0 },

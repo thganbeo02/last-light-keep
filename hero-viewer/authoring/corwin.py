@@ -133,6 +133,10 @@ def build():
     for a,b in zip(rings,rings[1:]): faces+=strip_faces(a,b)
     part("Faceted hood shell","plum",faces)
     loft("Hood nape fold","plum",[(178,147,284,962,1012),(200,123,301,955,1018),(216,112,318,952,1025),(236,120,310,954,1023),(250,149,287,967,1021),(267,185,254,975,1010)])
+    for side in (-1,1):
+        # Short seams round the temple into the back of the hood.
+        tube("Hood seam","trim",[(216+side*x,y,z) for x,y,z in
+             [(66,99,1080),(77,116,1051),(79,145,1017),(84,169,984)]],2.6,6)
     for s in (-1,1):
         for i in range(3):
             x=223+s*(20+i*12)
@@ -152,7 +156,9 @@ def build():
             block("Lantern cage upright","bronze",x,527,z,9,63,9,2)
     for y in (482,572):
         for x in (354,409):
-            disc("Cage rivet","gold",x,y,1260,8,4)
+            plate("Diamond cage rivet","gold",[(x-9,y,1262),(x,y-9,1262),(x+9,y,1262),(x,y+9,1262)],5)
+        for z in (1184,1234):
+            plate("Side cage rivet","gold",[(433,y,z-7),(433,y-7,z),(433,y,z+7),(433,y+7,z)],4,axis=0)
     # Inner glass panels transmit warm light but leave the coal visible through the cage.
     loft("Amber glass","glass",[(497,338,412,1177,1242),(558,338,412,1177,1242)],cut=.12)
     loft("Firelit inner chimney","amber",[(499,345,405,1180,1220),(553,344,406,1179,1220)],cut=.24)

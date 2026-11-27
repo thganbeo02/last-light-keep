@@ -4,6 +4,7 @@ import { poseHero, HERO_CLIPS, ALDRIC_V2_CLIPS } from './hero-animation.js';
 import { V3, rand, randi, pick, clamp, lerp, smooth, ease, lerpAngle, hash, vnoise, fbm, tmpC, vary } from './utils.js';
 import PATCHES from './patches.json';
 import aldricAsset from '../hero-viewer/assets/aldric.glb?url';
+import corwinAsset from '../hero-viewer/assets/corwin.glb?url';
 import { loadHeroModel } from './hero-model.js';
 import { makeGame as eMakeGame, has as hasSkill } from './engine/state.ts';
 import { barrAsStat, barrStat as eBarrStat } from './engine/soldiers.ts';
@@ -2654,12 +2655,13 @@ function updateSoldierFx(dt) {
   swooshes = swooshes.filter(w => { w.t += dt; w.m.material.opacity = .85 * (1 - w.t / .22); w.m.scale.setScalar(1 + w.t * 1.5); if (w.t < .22) return true; scene.remove(w.m); w.m.material.dispose(); return false; });
   fallenSol = fallenSol.filter(f => { f.t += dt; const g = f.s.g;
     if (Object.hasOwn(HEROES, f.s.type)) {
-      if (f.s.aldricV2) poseAldricV2(f.s.aldricV2,'fall',f.t);
+      if (f.s.authoredRig) poseAuthoredHero(f.s.authoredRig,'fall',f.t);
       else poseHero(f.s, f.s.type, 'fall', f.t);
     } else { g.rotation.x = -Math.min(1, f.t / .35) * Math.PI / 2 * .95; g.rotation.z = f.side * Math.min(1, f.t / .35) * .2; }
     if (f.t > .35 && !f.dust) { f.dust = true; fxDust(g.position, 4, .25); }
-    if (f.t > 1) g.position.y -= dt * 1.2;
-    if (f.t < 1.7) return true; scene.remove(g); return false; });
+    const sinkAt = f.s.type === 'corwin' && f.s.authoredRig ? f.s.authoredRig.actions.fall.getClip().duration : 1;
+    if (f.t > sinkAt) g.position.y -= dt * 1.2;
+    if (f.t < sinkAt + .7) return true; scene.remove(g); return false; });
 }
 const soldierName = () => { for (let k = 0; k < 8; k++) { const n = pick(SOL_FIRST) + ' ' + pick(SOL_LAST); if (!soldiers.some(s => s.alive && s.name === n)) return n; } return pick(SOL_FIRST) + ' ' + pick(SOL_LAST); };
 const solBarMat = new THREE.MeshBasicMaterial({ color: 0x5aa8ff, transparent: true, depthWrite: false });
@@ -2680,7 +2682,7 @@ class Soldier {
     this.bar.children[0].renderOrder = 5; this.fg.renderOrder = 6;
     scene.add(this.g, this.bar); soldiers.push(this);
     this.target = null; this.cd = rand(0, .4); this.anim = rand(0, 6); this.flash = 0; this.flashing = false; this.hits = 0; this.swing = 0; this.heading = 0; this.center = new V3();
-    if (this.type==='aldric') void attachBattleAldricV2(this);
+    if (Object.hasOwn(HEROES, this.type)) void attachAuthoredBattleHero(this);
   }
   // where to stand around an enemy, so several soldiers on one enemy fan out instead of stacking
   slot() { const r = this.tw.rally, n = this.tw.bs.n, a = this.i / n * Math.PI * 2 + .6, d = n > 1 ? .55 : 0; return { x: r.x + Math.cos(a) * d, z: r.z + Math.sin(a) * d }; }
@@ -2715,19 +2717,29 @@ class Soldier {
     this.bar.position.set(pos.x, pos.y + this.hb, pos.z); this.bar.quaternion.copy(camera.quaternion);
     this.fg.scale.x = .6 * Math.max(0, this.hp / this.maxHp); this.bar.visible = this.hp < this.maxHp;
   }
+  corwinAttackClip(attack) {
+    if (this.posedAttack !== attack) {
+      this.posedAttack = attack;
+      const { x, z } = this.src;
+      this.attackClip = (attack.e.x - x) ** 2 + (attack.e.z - z) ** 2 <= 1 ? 'close-attack' : 'ember-bolt';
+    }
+    return this.attackClip;
+  }
   animateHero(dt, moving) {
     const hero = this.type, cast = this.heroCast, time = G.time;
-    if (this.aldricV2) {
-      animateBattleAldricV2(this,dt,moving,time,cast);
+    if (this.authoredRig) {
+      if (hero === 'aldric') animateBattleAldricV2(this,dt,moving,time,cast);
+      else animateBattleCorwin(this,dt,moving,time,cast);
       return;
     }
     const pose = (clip, t, strideWeight) => poseHero(this, hero, clip, t, strideWeight);
+    const attackClip = hero === 'corwin' && this.atk ? this.corwinAttackClip(this.atk) : 'slash';
     if (hero === 'aldric' && G.hero?.shieldUntil > time) {
       pose('shield-wall', cast?.clip === 'shield-wall' ? time - cast.at : .18);
       return;
     }
     if (cast && cast.clip !== 'shield-wall' && time - cast.at < cast.duration) { pose(cast.clip, time - cast.at); return; }
-    if (this.atk) { pose(hero === 'aldric' ? 'slash' : 'ember-bolt', this.atk.t); return; }
+    if (this.atk) { pose(attackClip, this.atk.t); return; }
     if (time - this.hurtAt < .24) { pose('hurt', time - this.hurtAt); return; }
     const blend = this.marchBlend ?? 0;
     this.marchBlend = clamp(blend + (moving ? 1 : -1) * dt * 8, 0, 1);
@@ -3533,7 +3545,22 @@ function engineEvent(ev) {
       const c = new V3(ev.e.x, ev.e.y + ev.e.cy, ev.e.z);
       if (v) v.flinch = 1;
       if (ev.s.type === 'corwin') {
-        bolt(new V3(ev.s.x, ev.s.y + .8, ev.s.z), c, 0xff9b4a);
+        const so = eView.get(ev.s);
+        const clip = so && ev.s.atk ? so.corwinAttackClip(ev.s.atk) : 'ember-bolt';
+        const rig = so?.authoredRig;
+        const fist = rig?.model.getObjectByName('Resting_fist');
+        let palm = new V3(ev.s.x, ev.s.y + .8, ev.s.z);
+        if (fist) {
+          poseAuthoredHero(rig, clip, corwinStrikeTime(clip, .15));
+          palm = new THREE.Box3().setFromObject(fist).getCenter(palm);
+        } else if (clip === 'close-attack') {
+          poseHero(so, 'corwin', clip, .15);
+          palm = so.arms[0].localToWorld(new V3(0, -.32, .08));
+        }
+        if (clip === 'close-attack') {
+          const velocity = c.clone().sub(palm).multiplyScalar(20);
+          glow.spawn(palm.x, palm.y, palm.z, velocity.x, velocity.y, velocity.z, .05, .12, 0xffb45b, 0, F_SPIN, 1, FIRE2);
+        } else bolt(palm, c, 0xff9b4a);
         fxSparks(c, 0xffb45b, 6, 2.2);
       } else {
         const so = eView.get(ev.s);
@@ -4774,33 +4801,35 @@ const pScene = litScene();
 const pCam = new THREE.PerspectiveCamera(32, 1, .1, 100);
 const pv = { rigs: {}, versions: {}, hero: null, clip: 'idle', time: 0, spinning: false, dragX: 0, playing: !matchMedia('(prefers-reduced-motion: reduce)').matches };
 
-let aldricV2Load;
+const authoredAssets = { aldric: aldricAsset, corwin: corwinAsset };
+const authoredClips = { aldric: ALDRIC_V2_CLIPS, corwin: Object.fromEntries(Object.keys(HERO_CLIPS.corwin).map(key => [key, key])) };
+const authoredLoads = {};
 
-function loadAldricV2() {
-  aldricV2Load ??= loadHeroModel(aldricAsset).then(({scene,animations})=>{
+function loadAuthoredHero(hero) {
+  authoredLoads[hero] ??= loadHeroModel(authoredAssets[hero]).then(({scene,animations})=>{
     const clips=new Map(animations.map(clip=>[clip.name,clip]));
-    for (const name of Object.values(ALDRIC_V2_CLIPS)) {
-      if (!clips.has(name)) throw new Error('Aldric v2 is missing '+name);
+    for (const name of Object.values(authoredClips[hero])) {
+      if (!clips.has(name)) throw new Error(hero+' v2 is missing '+name);
     }
     return {scene,clips};
   }).catch(err=>{
-    aldricV2Load=null;
+    delete authoredLoads[hero];
     throw err;
   });
-  return aldricV2Load;
+  return authoredLoads[hero];
 }
 
-function makeAldricV2(asset) {
+function makeAuthoredHero(hero,asset) {
   const model=asset.scene.clone(true);
   model.scale.setScalar(.9);
   const mixer=new THREE.AnimationMixer(model);
-  const actions=Object.fromEntries(Object.entries(ALDRIC_V2_CLIPS).map(([key,name])=>
+  const actions=Object.fromEntries(Object.entries(authoredClips[hero]).map(([key,name])=>
     [key,mixer.clipAction(asset.clips.get(name))]
   ));
   return {model,mixer,actions};
 }
 
-function poseAldricV2(rig,clip,time) {
+function poseAuthoredHero(rig,clip,time) {
   const action=rig.actions[clip];
   if (rig.active!==action) {
     rig.mixer.stopAllAction();
@@ -4813,18 +4842,18 @@ function poseAldricV2(rig,clip,time) {
   rig.mixer.update(0);
 }
 
-async function attachBattleAldricV2(soldier) {
+async function attachAuthoredBattleHero(soldier) {
+  const hero = soldier.type;
   try {
-    const asset=await loadAldricV2();
+    const asset=await loadAuthoredHero(hero);
     if (!soldier.alive || soldier.g.parent!==scene) return;
-    const rig=makeAldricV2(asset);
-    // The battlefield already places the spectral gate at the engine's position.
-    for (const name of ['GatePosts','GateLintel','Portcullis','GroundLight']) {
-      const prop=rig.model.getObjectByName(name);
-      if (prop) prop.visible=false;
-    }
+    const rig=makeAuthoredHero(hero,asset);
+    const previewProp = hero === 'aldric' ? /^(GatePosts|GateLintel|Portcullis|GroundLight)$/
+      : /^(Bolt|Kindle_seed|Ward_marker|Ward_seal|Coal_\d+|Spark_\d+)$/;
     soldier.meshes=[];
     rig.model.traverse(o=>{
+      // Battle effects use the engine's targets and positions.
+      if (previewProp.test(o.name)) o.visible=false;
       if (!o.isMesh) return;
       o.userData.m=o.material;
       if (soldier.flashing) o.material=flashMat;
@@ -4832,44 +4861,68 @@ async function attachBattleAldricV2(soldier) {
     });
     soldier.g.add(rig.model);
     soldier.b.visible=false;
-    soldier.aldricV2=rig;
+    soldier.authoredRig=rig;
   } catch (err) {
-    console.warn('Aldric v2 could not load. Using v1.',err);
+    console.warn(hero+' v2 could not load. Using the fallback model.',err);
+  }
+}
+
+function corwinStrikeTime(clip, age) {
+  if (clip === 'close-attack') return age;
+  return age < .15 ? age * .20 / .15 : .20 + (age - .15) * .50 / .21;
+}
+
+const corwinCastCue = { kindle: .55, 'ashen-ward': .53, 'undying-coal': .94 };
+function animateBattleCorwin(soldier,dt,moving,time,cast) {
+  const rig = soldier.authoredRig;
+  const castTime = cast && corwinCastCue[cast.clip] + time - cast.at;
+  if (cast && castTime < rig.actions[cast.clip].getClip().duration) {
+    poseAuthoredHero(rig,cast.clip,castTime);
+  } else if (soldier.atk) {
+    const clip = soldier.corwinAttackClip(soldier.atk);
+    poseAuthoredHero(rig,clip,corwinStrikeTime(clip,soldier.atk.t));
+  } else if (time-soldier.hurtAt < .24) {
+    poseAuthoredHero(rig,'hurt',(time-soldier.hurtAt)*.47/.24);
+  } else if (moving) {
+    soldier.anim+=dt;
+    poseAuthoredHero(rig,'walk',soldier.anim);
+  } else {
+    poseAuthoredHero(rig,'idle',game.time);
   }
 }
 
 function animateBattleAldricV2(soldier,dt,moving,time,cast) {
-  const rig=soldier.aldricV2;
+  const rig=soldier.authoredRig;
   if (soldier.atk) soldier.aldricSlashAt=time-soldier.atk.t;
   const swingAge=time-soldier.aldricSlashAt;
   const shieldUntil=G.hero?.shieldUntil ?? 0;
   if (shieldUntil>time) {
     const elapsed=cast?.clip==='shield-wall' ? time-cast.at : 1;
     const poseTime=shieldUntil-time<.54 ? 2.2-(shieldUntil-time) : Math.min(elapsed,1);
-    poseAldricV2(rig,'shield-wall',poseTime);
+    poseAuthoredHero(rig,'shield-wall',poseTime);
   } else if (cast && cast.clip!=='shield-wall' && time-cast.at<rig.actions[cast.clip].getClip().duration) {
-    poseAldricV2(rig,cast.clip,time-cast.at);
+    poseAuthoredHero(rig,cast.clip,time-cast.at);
   } else if (swingAge<.55) {
     // Keep the visible 0.20 s cut around the engine's 0.15 s hit.
     const t=swingAge<.05 ? swingAge*.23/.05
       : swingAge<.25 ? .23+(swingAge-.05)
       : .43+(swingAge-.25)*.29/.30;
-    poseAldricV2(rig,'slash',t);
+    poseAuthoredHero(rig,'slash',t);
   } else if (time-soldier.hurtAt<rig.actions.hurt.getClip().duration) {
-    poseAldricV2(rig,'hurt',time-soldier.hurtAt);
+    poseAuthoredHero(rig,'hurt',time-soldier.hurtAt);
   } else if (moving) {
     soldier.anim+=dt;
-    poseAldricV2(rig,'walk',soldier.anim);
+    poseAuthoredHero(rig,'walk',soldier.anim);
   } else {
-    poseAldricV2(rig,'idle',game.time);
+    poseAuthoredHero(rig,'idle',game.time);
   }
 }
 
 async function loadAldricPreview() {
   try {
-    const asset = await loadAldricV2();
+    const asset = await loadAuthoredHero('aldric');
     if (!pv.aldricV2) {
-      pv.aldricV2 = makeAldricV2(asset);
+      pv.aldricV2 = makeAuthoredHero('aldric',asset);
       pv.aldricV2.model.visible = false;
       pv.rigs.aldric.facing.add(pv.aldricV2.model);
     }
@@ -4878,6 +4931,24 @@ async function loadAldricPreview() {
     const status = pv.hero === 'aldric' && bkB.querySelector('[data-model-status]');
     if (status) status.textContent = 'The artwork could not load.';
     console.warn(err);
+  }
+}
+
+async function loadCorwinPreview(rig) {
+  if (rig.loadingRemodel) return;
+  rig.loadingRemodel = true;
+  try {
+    const asset = await loadAuthoredHero('corwin');
+    rig.remodel = makeAuthoredHero('corwin',asset);
+    rig.remodel.model.visible = false;
+    rig.facing.add(rig.remodel.model);
+    renderPreview(0);
+  } catch (err) {
+    const status = pv.hero === 'corwin' && bkB.querySelector('[data-model-status]');
+    if (status) status.textContent = 'The revised model could not load.';
+    console.warn(err);
+  } finally {
+    rig.loadingRemodel = false;
   }
 }
 
@@ -4910,16 +4981,17 @@ async function selectPreviewVersion(hero, version) {
     }
   }
   if (version === 'v2' && hero === 'aldric' && !pv.aldricV2) void loadAldricPreview();
+  if (version === 'v2' && hero === 'corwin' && !rig.remodel) void loadCorwinPreview(rig);
   renderPreview(0);
 }
 
-function renderAldricV2Preview(dt) {
-  const duration=pv.aldricV2.actions[pv.clip].getClip().duration;
+function renderAuthoredHeroPreview(rig, dt) {
+  const duration=rig.actions[pv.clip].getClip().duration;
   const loops=pv.clip==='idle' || pv.clip==='walk';
   const period=loops ? duration : duration+.7;
   if (pv.playing) pv.time=(pv.time+dt)%period;
-  if (pv.time<duration || pv.clip==='fall') poseAldricV2(pv.aldricV2,pv.clip,pv.time);
-  else poseAldricV2(pv.aldricV2,'idle',pv.time-duration);
+  if (pv.time<duration || pv.clip==='fall') poseAuthoredHero(rig,pv.clip,pv.time);
+  else poseAuthoredHero(rig,'idle',pv.time-duration);
 }
 
 function setPreviewSpin(spinning) {
@@ -5007,6 +5079,8 @@ function showHeroPreview(hero) {
     void selectPreviewVersion(hero, 'v1');
   } else if (hero === 'aldric' && previewVersion(hero) === 'v2' && !pv.aldricV2) {
     void loadAldricPreview();
+  } else if (hero === 'corwin' && previewVersion(hero) === 'v2' && !pv.rigs[hero].remodel) {
+    void loadCorwinPreview(pv.rigs[hero]);
   }
   renderPreview(0);
 }
@@ -5021,14 +5095,15 @@ function renderPreview(dt) {
   const rig = pv.rigs[pv.hero];
   const original = import.meta.env.DEV && previewVersion(pv.hero) === 'v1' && rig.original;
   if (import.meta.env.DEV && rig.original) rig.original.model.visible = !!original;
-  const revised = pv.aldricV2 && pv.hero === 'aldric' && previewVersion(pv.hero) === 'v2';
+  const authored = pv.hero === 'aldric' ? pv.aldricV2 : rig.remodel;
+  const revised = authored && previewVersion(pv.hero) === 'v2';
   rig.b.visible = !original && !revised;
-  if (pv.aldricV2) pv.aldricV2.model.visible = !!revised;
+  if (authored) authored.model.visible = !!revised;
   if (revised) {
     pv.banner.visible = false;
     pv.gate.visible = false;
     if (pv.embers) renderCorwinPreviewFx(pv.embers, null, 0);
-    renderAldricV2Preview(dt);
+    renderAuthoredHeroPreview(authored, dt);
     pr.render(pScene, pCam);
     return;
   }
@@ -5063,11 +5138,12 @@ function makeCorwinPreviewFx() {
   return { ember, fire, tower, ward };
 }
 function renderCorwinPreviewFx({ ember, fire, tower, ward }, clip, t) {
-  const launch = clip === 'ember-bolt' ? .15 : .33, impact = clip === 'ember-bolt' ? .36 : .62;
-  ember.visible = (clip === 'ember-bolt' || clip === 'kindle') && t >= launch && t < impact;
+  const close = clip === 'close-attack', direct = close || clip === 'ember-bolt';
+  const launch = direct ? .15 : .33, impact = close ? .25 : direct ? .36 : .62;
+  ember.visible = (direct || clip === 'kindle') && t >= launch && t < impact;
   if (ember.visible) {
     const p = (t - launch) / (impact - launch);
-    ember.position.set(lerp(.32, 1.28, p), lerp(.92, clip === 'kindle' ? .14 : .72, p) + Math.sin(p * Math.PI) * .24, .08);
+    ember.position.set(lerp(.32, close ? .71 : 1.28, p), lerp(.92, direct ? .72 : .14, p) + Math.sin(p * Math.PI) * (close ? .07 : .24), .08);
     ember.scale.setScalar(.09 + .08 * Math.sin(p * Math.PI));
   }
   tower.visible = clip === 'ashen-ward';
