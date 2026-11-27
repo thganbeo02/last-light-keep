@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { HERO_ABILITIES as AB, HEROES, HERO_RECOVERY, HERO_REGEN, HERO_SPEED } from '../src/content/heroes.ts';
+import { HERO_ABILITIES as AB, HEROES, type HeroAbility, HERO_RECOVERY, HERO_REGEN, HERO_SPEED } from '../src/content/heroes.ts';
 import { hurt, killReward, place, spawnEnemy } from '../src/engine/enemies.ts';
 import { DT, tick, type Input } from '../src/engine/game.ts';
-import { heroMoveSpot, heroRoadSpot, isBurning } from '../src/engine/heroes.ts';
+import { castHero, heroMoveSpot, heroRoadSpot, isBurning } from '../src/engine/heroes.ts';
+import type { Vec2 } from '../src/engine/math.ts';
 import { gx2w, gz2w, TILE, W } from '../src/engine/map.ts';
 import { fireArrow } from '../src/engine/projectiles.ts';
 import { hurtSoldier } from '../src/engine/soldiers.ts';
@@ -10,9 +11,8 @@ import { groundY, makeGame, type Game } from '../src/engine/state.ts';
 import { buildTower } from '../src/engine/towers.ts';
 
 const battle = (hero: keyof typeof HEROES) => makeGame({ map: 0, hero, seed: 12 });
-type Cast = Extract<Input, { do: 'heroCast' }>;
-const cast = (g: Game, k: Cast['k'], options: Omit<Cast, 'do' | 'k'> = {}) =>
-  tick(g, [{ do: 'heroCast', k, ...options }]).some(e => e.t === 'heroCast' && e.k === k);
+// Skills cast themselves in battle; these tests cast them directly to check each rule.
+const cast = (g: Game, k: HeroAbility, { at, targetTower }: { at?: Vec2; targetTower?: number } = {}) => castHero(g, k, at, targetTower);
 
 describe('battle heroes', () => {
   it('walks diagonally across clear ground at full speed', () => {
@@ -66,6 +66,7 @@ describe('battle heroes', () => {
     const g = battle('aldric'), h = g.hero!, p = heroRoadSpot(g, h.unit, 2)!;
     const foes = Array.from({ length: 5 }, () => spawnEnemy(g, 'soldier', p.d));
     const bat = spawnEnemy(g, 'flyer', p.d);
+    h.recharge['shield-wall'] = Infinity; // it would brace and hold all five
     tick(g);
     expect(foes.filter(e => e.blocker === h.unit)).toHaveLength(3);
     expect(bat.blocker).toBeNull();
@@ -75,6 +76,28 @@ describe('battle heroes', () => {
     ally.x = h.unit.x; ally.z = h.unit.z;
     hurtSoldier(g, ally, 10, 'true');
     expect(ally.maxHp - ally.hp).toBeCloseTo(8.5);
+  });
+
+  it('Hold Fast swings also hit every other held enemy for half damage', () => {
+    const g = battle('aldric'), h = g.hero!, p = heroRoadSpot(g, h.unit, 2)!;
+    h.recharge['shield-wall'] = h.recharge['rally-the-line'] = Infinity;
+    const foes = Array.from({ length: 3 }, () => { const e = spawnEnemy(g, 'soldier', p.d); e.stun = 30; return e; });
+    for (let i = 0; i < 30 && foes.every(e => e.hp === e.maxHp); i++) tick(g);
+    const hit = foes.map(e => e.maxHp - e.hp).sort((a, b) => b - a);
+    expect(hit[0]).toBeGreaterThan(0);
+    expect(hit[1]).toBeCloseTo(hit[0] / 2); expect(hit[2]).toBeCloseTo(hit[0] / 2);
+  });
+
+  it('Rally the Line casts itself when 2 ground enemies close in, and speeds Aldric and nearby towers by 20%', () => {
+    const g = battle('aldric'), h = g.hero!, s = h.unit, p = heroRoadSpot(g, s, 2)!;
+    h.recharge['shield-wall'] = Infinity;
+    const t = buildTower(g, 'arrow', 0, { instant: true, free: true })!;
+    t.x = s.x; t.z = s.z;
+    for (let k = 0; k < 2; k++) spawnEnemy(g, 'soldier', p.d).stun = 30;
+    expect(tick(g)).toContainEqual(expect.objectContaining({ t: 'heroCast', k: 'rally-the-line' }));
+    t.cool = s.cd = 1;
+    tick(g);
+    expect(t.cool).toBeCloseTo(1 - DT * 1.2); expect(s.cd).toBeCloseTo(1 - DT * 1.2);
   });
 
   it('Rally the Line revives nearby Barracks soldiers and hastens attacks around a fixed banner', () => {
@@ -91,6 +114,7 @@ describe('battle heroes', () => {
     expect(cast(g, 'rally-the-line')).toBe(true);
     expect(t.soldiers[0]).not.toBe(fallen);
     expect(t.soldiers[0].hp).toBe(t.soldiers[0].maxHp);
+    tick(g);
     expect(ally.cd).toBeCloseTo(1 - DT * 1.3);
     expect(cast(g, 'rally-the-line')).toBe(false);
     const banner = h.banner!;
@@ -99,12 +123,12 @@ describe('battle heroes', () => {
     expect(h.banner).toBeNull();
   });
 
-  it('Shield Wall braces Aldric, takes over nearby fights and releases extra enemies when it expires', () => {
+  it('Shield Wall braces Aldric on its own when 3 ground enemies close in, takes over nearby fights and releases extra enemies when it expires', () => {
     const g = battle('aldric'), h = g.hero!, s = h.unit;
     const p = heroRoadSpot(g, s, 2)!;
     const foes = Array.from({ length: 5 }, () => spawnEnemy(g, 'soldier', p.d));
-    tick(g);
-    expect(cast(g, 'shield-wall')).toBe(true);
+    expect(tick(g)).toContainEqual(expect.objectContaining({ t: 'heroCast', k: 'shield-wall' }));
+    expect(cast(g, 'shield-wall')).toBe(false);
     expect(foes.every(e => e.blocker === s)).toBe(true);
     hurtSoldier(g, s, 100, 'true');
     expect(s.hp).toBeCloseTo(s.maxHp - 30);
@@ -165,6 +189,16 @@ describe('battle heroes', () => {
     for (let i = 0; i < 6 / DT; i++) tick(g);
     expect(g.hero!.kindle).toBeNull();
     expect(isBurning(g, e)).toBe(false);
+  });
+
+  it('Kindle casts itself under 2 ground enemies within Corwin’s range, and not under 1', () => {
+    const g = battle('corwin'), h = g.hero!, p = heroRoadSpot(g, h.unit, 2)!;
+    const one = spawnEnemy(g, 'soldier', p.d); one.stun = 30;
+    tick(g);
+    expect(h.kindle).toBeNull();
+    const two = spawnEnemy(g, 'soldier', p.d); two.stun = 30;
+    expect(tick(g)).toContainEqual(expect.objectContaining({ t: 'heroCast', k: 'kindle' }));
+    expect(Math.hypot(h.kindle!.x - p.x, h.kindle!.z - p.z)).toBeLessThan(1);
   });
 
   it('Ashen Ward burns targets of the warded tower and pushes each nearby attacker back once', () => {

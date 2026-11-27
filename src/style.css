@@ -575,13 +575,11 @@ body.wm #hud,body.wm #einfo{display:none!important}
 .hab.need .hab-t,.hab.spent .hab-t{font-size:11px}
 .hab.ready .hab-t{inset:auto -4px -4px auto;min-width:20px;height:20px;padding:0 4px;box-sizing:border-box;border-radius:99px;background:#c8302a;border:2px solid #2e1b0d;font:900 11px/1 var(--body);text-shadow:none}
 #heroHud .hab.on{border-color:#fff;box-shadow:0 0 0 4px var(--hc);transform:translateY(2px)}
-.hab kbd{position:absolute;top:-6px;right:-6px;font:400 10px/1 var(--disp);background:#2a1608;color:#f2c14e;border-radius:6px;padding:3px 5px;border:2px solid #f2c14e}
 .hh-aim{display:flex;align-items:center;gap:8px;padding:5px 5px 5px 8px;border-radius:10px;background:#3a2410;border:1px solid #6b4a22}
 .hh-aim img{width:28px;height:28px;border-radius:50%;object-fit:cover;flex:none}
 .hh-aim span{flex:1;min-width:0;font:800 13px/1.2 var(--body);color:#ffe2aa}
 #heroHud .hh-aim button{min-height:36px;padding:0 12px;border-radius:9px;border:2px solid #6b4a22;background:#eadbb2;color:#3a2414;font-size:12px}
 body:has(#heroHud:not([hidden])) #spells{left:calc(328px + env(safe-area-inset-left,0px))}
-@media (hover:none){.hab kbd{display:none}}
 @media (max-width:1160px){body:has(#heroHud:not([hidden])) #spells{left:calc(10px + env(safe-area-inset-left,0px));bottom:calc(220px + env(safe-area-inset-bottom,0px))}}
 @media (max-width:700px){
   #heroHud{bottom:calc(80px + env(safe-area-inset-bottom,0px));width:214px;padding:8px;gap:6px}

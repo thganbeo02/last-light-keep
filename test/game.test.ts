@@ -68,6 +68,14 @@ describe('waves', () => {
     sendWave(g, true);
     expect(g.scd.militia).toBeCloseTo(30 - left, 5); expect(g.scd.catapult).toBe(0);
   });
+  it('calling a wave early also takes the seconds skipped off hero skill recharges and recovery', () => {
+    const g = game({ hero: 'corwin' }); run(g, 0.1, [{ do: 'callWave' }]);
+    for (let i = 0; i < 30 * 60 && g.spawnQ.length; i++) tick(g);
+    const h = g.hero!, left = g.countdown;
+    h.recharge.kindle = g.time + 30; h.respawnAt = g.time + 12;
+    sendWave(g, true);
+    expect(h.recharge.kindle).toBeCloseTo(g.time + 30 - left, 5); expect(h.respawnAt).toBeCloseTo(g.time + 12 - left, 5);
+  });
   it('clearing a wave pays 20 + 5 per wave; Muster, Interest and Repair add to it', () => {
     const g = game({ skills: ['kingdom.muster', 'kingdom.interest', 'kingdom.repair'] });
     for (let p = 0; p < 6; p++) tick(g, [{ do: 'build', type: 'arrow', plot: p }]);

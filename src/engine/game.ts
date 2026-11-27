@@ -2,9 +2,8 @@
 // the player's inputs. Also the battle's rules: calling waves (and the early-call bonus), the countdown between
 // waves, the wave-clear bonus, victory and stars. Ported from main.js (updateGame, startWave, sendWave, showEnd).
 import { drumPass } from './drum.ts';
-import type { HeroAbility } from '../content/heroes.ts';
 import { spawnEnemy, updateEnemy } from './enemies.ts';
-import { castHero, moveHero, updateHero } from './heroes.ts';
+import { moveHero, updateHero } from './heroes.ts';
 import { updateProjectiles } from './projectiles.ts';
 import { rallyPick, setRally, updateSoldier } from './soldiers.ts';
 import { castSpell, spellSpot, spellsTick, type SpellKey } from './spells.ts';
@@ -24,7 +23,6 @@ export type Input =
   | { do: 'rally'; tower: number; x: number; z: number }
   | { do: 'callWave' }
   | { do: 'heroMove'; x: number; z: number }
-  | { do: 'heroCast'; k: HeroAbility; at?: { x: number; z: number }; targetTower?: number }
   | { do: 'cast'; k: SpellKey; x: number; z: number };
 
 /** Starts the next wave: queues its spawns. */
@@ -36,13 +34,18 @@ export function startWave(g: Game) {
 }
 
 /** Calls the next wave now. Early (before its countdown ends) pays 2 gold per second left, +25% with Early Bird,
- *  and takes the seconds left off every spell's cooldown. */
+ *  and takes the seconds left off every spell's cooldown, the hero's skill recharges and the hero's recovery. */
 export function sendWave(g: Game, early: boolean) {
   if (g.mode !== 'play' || g.state !== 'play' || g.spawnQ.length || g.wave >= g.def.waves) return;
   const bonus = early && g.wave > 0 ? Math.max(0, Math.round(g.countdown * 2 * (has(g, 'kingdom.early') ? 1.25 : 1))) : 0;
   g.gold += bonus; g.earned += bonus;
   const skip = early && g.wave > 0 ? Math.max(0, g.countdown) : 0;
   for (const k in g.scd) g.scd[k] = Math.max(0, g.scd[k] - skip);
+  const h = g.hero;
+  if (h) {
+    for (const k of Object.keys(h.recharge) as (keyof typeof h.recharge)[]) h.recharge[k]! -= skip;
+    h.respawnAt -= skip;
+  }
   startWave(g);
 }
 
@@ -65,7 +68,6 @@ function apply(g: Game, i: Input) {
     case 'rally': if (tower?.type === 'barracks') { const r = rallyPick(g, tower, i.x, i.z); if (r) setRally(tower, r); } break;
     case 'callWave': sendWave(g, true); break;
     case 'heroMove': { const why = g.hero?.unit.alive && moveHero(g, i); if (why) g.events.push({ t: 'heroMoveBlocked', why }); break; }
-    case 'heroCast': castHero(g, i.k, i.at, i.targetTower); break;
     case 'cast': { const q = spellSpot(g, i.k, i.x, i.z); if (q) castSpell(g, i.k, q); break; }
   }
 }

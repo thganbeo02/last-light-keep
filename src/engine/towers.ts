@@ -2,11 +2,12 @@
 // Ported from main.js (tStat, specStat, rankCost, upCost, sellRate, class Tower, buildHere, ringAct, sellTower).
 // The Barracks and War Drum share this tower record; their own behaviour arrives in their steps of docs/M1.md.
 import { UNLOCKS } from '../content/campaign.ts';
+import { HERO_ABILITIES } from '../content/heroes.ts';
 import { SK_STAT } from '../content/skills.ts';
 import { MUZZLE_Y } from '../content/tower-dims.ts';
 import { MORTAR_DEAD, SPEC, TT, UPC } from '../content/towers.ts';
 import { centreDist2, hurt, type Enemy } from './enemies.ts';
-import { isBurning } from './heroes.ts';
+import { bannerHaste, isBurning } from './heroes.ts';
 import { pathAt } from './map.ts';
 import { int, range } from './rng.ts';
 import { fireArrow, fireBall, fireShard, freezeEnemy } from './projectiles.ts';
@@ -235,7 +236,7 @@ export function updateTower(g: Game, t: Tower, dt: number) {
   if (!t.target || !canHit(t, t.target) || !inRange(t, t.target, st.range) || tooClose(g, t, t.target) || t.retarget <= 0) { t.target = findTarget(g, t, st.range); t.retarget = 0.25; }
   const e = t.target;
   if (e && e === t.held) t.holdT += dt; else { t.held = e; t.holdT = 0; }
-  t.cool -= dt;
+  t.cool -= dt * bannerHaste(g, t, HERO_ABILITIES['rally-the-line'].boost);
   if (!e || t.cool > 0) return;
   t.cool = st.rate; t.shots++;
   const fire: { t: 'fire'; tower: Tower; target: Enemy; chains?: Enemy[][] } = { t: 'fire', tower: t, target: e }; g.events.push(fire);

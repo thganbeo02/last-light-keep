@@ -6,6 +6,7 @@ import { ED } from '../content/enemies.ts';
 import { DTYPE, SPEC, TT } from '../content/towers.ts';
 import { drumAsStat, drumStat, type DrumKey } from './drum.ts';
 import { spawnEnemy } from './enemies.ts';
+import { moveHero } from './heroes.ts';
 import { startWave, tick, DT } from './game.ts';
 import { int, range } from './rng.ts';
 import { barrAsStat, barrStat, type BarrKey } from './soldiers.ts';
@@ -167,3 +168,25 @@ export function makeWatchGame(o: Omit<GameOptions, 'mode'>): Game {
   return g;
 }
 
+/**
+ * The simulator's hero player. Each wave it posts Aldric where two towers' cover begins, farthest from the castle,
+ * and Corwin on the road the towers cover most, nearest the castle, and walks the hero back there between fights.
+ * The hero's skills cast themselves. Hero balance is measured against this player, not a human,
+ * so compare its numbers between versions rather than reading them as a player's.
+ */
+const posts = new WeakMap<Game, { wave: number; x: number; z: number }>();
+export function heroThink(g: Game) {
+  const h = g.hero;
+  if (!h?.unit.alive) return;
+  const s = h.unit;
+  let post = posts.get(g);
+  if (!post || post.wave !== g.wave) {
+    const ks = computeKS(g), sm = g.map.samples;
+    let bi = 0;
+    if (h.key === 'aldric') sm.forEach((p, i) => { if (ks[i] >= 2 && (ks[bi] < 2 || p.w < sm[bi].w)) bi = i; }); // the front of the towers' cover
+    else sm.forEach((p, i) => { if (ks[i] * p.w > ks[bi] * sm[bi].w) bi = i; });
+    const p = sm[bi];
+    posts.set(g, post = { wave: g.wave, x: p.x, z: p.z });
+  }
+  if (!s.target && !h.route.length && (s.x - post.x) ** 2 + (s.z - post.z) ** 2 > 1) moveHero(g, post);
+}

@@ -207,6 +207,42 @@ export function castHero(g: Game, k: HeroAbility, at?: Vec2, towerId?: number) {
   return true;
 }
 
+/** Skills cast themselves once enough enemies are close; never while the hero walks a move order. */
+function autoCast(g: Game, h: Hero) {
+  const s = h.unit, ready = (k: HeroAbility) => (h.recharge[k] ?? 0) <= g.time;
+  const ground = (p: Vec2, r: number) => g.enemies.filter(e => e.alive && !e.def.air && within(e, p, r)).length;
+  if (h.key === 'aldric') {
+    const close = ground(s, SHIELD.near);
+    if (ready('shield-wall') && (close >= SHIELD.crowd || (s.target && s.hp < s.maxHp * SHIELD.low))) castHero(g, 'shield-wall');
+    if (ready('rally-the-line') && close >= RALLY.crowd) castHero(g, 'rally-the-line');
+    if (h.hits >= GATE.hits && !h.gate && close >= GATE.crowd) castHero(g, 'the-gate-holds');
+    return;
+  }
+  const reach = HEROES.corwin.reach;
+  if (ready('kindle')) {
+    let best: Enemy | null = null, most = KINDLE.crowd - 1;
+    for (const e of g.enemies) {
+      if (!e.alive || e.def.air || !within(e, s, reach)) continue;
+      const n = ground(e, KINDLE.radius);
+      if (n > most) { most = n; best = e; }
+    }
+    if (best) castHero(g, 'kindle', best);
+  }
+  if (ready('ashen-ward')) {
+    let best: Tower | null = null, most = WARD.crowd - 1;
+    for (const t of g.towers) {
+      if (t.type === 'barracks' || t.type === 'drum' || !within(t, s, reach)) continue;
+      const n = ground(t, WARD.radius);
+      if (n > most) { most = n; best = t; }
+    }
+    if (best) castHero(g, 'ashen-ward', undefined, best.id);
+  }
+  if (!h.coalUsed) {
+    const burning = g.enemies.filter(e => e.alive && isBurning(g, e));
+    if (burning.length >= COAL.crowd || burning.some(e => e.type === 'boss' || e.type === 'gruk')) castHero(g, 'undying-coal');
+  }
+}
+
 export const isBurning = (g: Game, e: Enemy) => e.burn > 0 || (e.wardBurnUntil ?? 0) > g.time || !!e.heroBurns?.some(until => until > g.time);
 const ignite = (g: Game, e: Enemy, duration: number) => (e.heroBurns ??= []).push(g.time + duration);
 
@@ -247,9 +283,10 @@ export function heroFell(g: Game, s: Soldier) {
   h.respawnAt = g.time + HERO_RECOVERY;
 }
 
-export const bannerHaste = (g: Game, s: Soldier) => {
+/** Attack speed under Rally the Line's banner: soldiers get `haste`, Aldric and towers get `boost`. */
+export const bannerHaste = (g: Game, p: Vec2, haste: number = RALLY.haste) => {
   const banner = g.hero?.banner;
-  return banner && banner.until > g.time && within(banner, s, RALLY.radius) ? 1 + RALLY.haste : 1;
+  return banner && banner.until > g.time && within(banner, p, RALLY.radius) ? 1 + haste : 1;
 };
 
 export const heroBlocks = (g: Game, s: Soldier, e: Enemy) => g.hero?.unit === s && g.hero.blocked.includes(e);
@@ -319,6 +356,7 @@ export function updateHero(g: Game, dt: number) {
     }
   }
   if (walking) s.y = groundY(g, s.x, s.z);
+  else autoCast(g, h); // before blocking, so Shield Wall takes over every fight this tick
   const shield = h.shieldUntil > g.time;
   const inReach = (e: Enemy) => e.alive && (h.key === 'corwin' || !e.def.air) && within(e, s, def.reach);
   if (h.key === 'aldric' && !walking) {
@@ -337,7 +375,7 @@ export function updateHero(g: Game, dt: number) {
   s.fighting = !!s.target;
   s.calm += dt; // hurtSoldier resets it
   if (!s.fighting && s.calm > 2) s.hp = Math.min(s.maxHp, s.hp + s.maxHp * HERO_REGEN * dt);
-  s.cd = Math.max(0, s.cd - dt);
+  s.cd = Math.max(0, s.cd - dt * bannerHaste(g, s, RALLY.boost));
   if (s.target) {
     const e = s.target;
     s.want = Math.atan2(e.x - s.x, e.z - s.z);
@@ -355,6 +393,7 @@ export function updateHero(g: Game, dt: number) {
       if (inReach(e)) {
         g.events.push({ t: 'heroHit', s, e });
         hurt(g, e, def.dmg, h.key === 'corwin' ? 'magic' : 'phys');
+        if ('cleave' in def) for (const o of h.blocked) if (o !== e && inReach(o)) hurt(g, o, def.dmg * def.cleave, 'phys');
       }
     }
     if (s.atk.t >= 0.36) s.atk = null;

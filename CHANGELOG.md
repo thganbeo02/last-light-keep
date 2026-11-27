@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-27 — Hero kits and simulator
+
+- Hero skills cast themselves, as in Kingdom Rush: the player only moves the hero. Each hero keeps a passive and three skills, each with a trigger in `src/content/heroes.ts` (enemies close in, low health, enough burning). The HUD shows recharge and charge instead of casting, and Q/W/E no longer cast.
+- Aldric: damage 28 (was 22). Hold Fast swings also hit every other held enemy for 50%. Rally the Line fires without Barracks and speeds Aldric and towers within 3 tiles by 20%. Both heroes recover in 12 s (was 15). Calling a wave early also takes the seconds skipped off hero skill recharges and recovery.
+- `npm run sim -- --heroes` replays each seed's no-hero purchases for every hero. Left to itself the build AI reacted to a hero's kills and swung River Crossing by 40 points; the 3.4 findings that Aldric and Kindle hurt there came from that. `docs/M4.md` plans hero progression and holds the new baseline: a level 1 hero adds 0 to 10 points of wins.
+- Verified with `npm test` (129 tests), `npm run typecheck`, `git diff --check`, the hero simulator, and a Corwin battle in the browser. Not yet in a release build or patch notes; the published 3.5 build predates it.
+
 ## 2026-11-26 — 3.4 Hero Workshop
 
 - Updated Aldric and Corwin’s in-game models. Aldric’s v2 animations are active in battle, and the Almanac has v1/v2 playback and manual model rotation.
