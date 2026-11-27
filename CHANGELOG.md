@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-28 — 3.6 Heroes Take Charge
+
+- Released the hero kits: automatic skills, Aldric's buff (28 damage, Hold Fast cleave, Rally's 20% tower and hero boost), 12 s recovery, and early waves shortening hero recharges. Patch note 3.6 and version 3.6.0.
+- Published the 14.93 MB build to the existing artifact as version 65; capabilities and sharing carried forward. Verified with 129 tests, typecheck, the patch notes in the built page, and no console errors. No battle was played in the built page.
+- Added a `dist` preview entry to `.claude/launch.json` for checking the built file.
+
 ## 2026-11-27 — 3.5 Corwin Ashguard Remodeled
 
 - Put Corwin’s revised model and nine animations into battle and the Almanac. Ranged and melee auto attacks have separate poses. When defeated, his head slumps to the ground and his lantern drops before the model sinks.

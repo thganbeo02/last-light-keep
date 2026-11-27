@@ -37,6 +37,18 @@
         "hero-viewer-claude/standalone"
       ],
       "port": 5231
+    },
+    {
+      "name": "dist",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "5240",
+        "-d",
+        "dist"
+      ],
+      "port": 5240
     }
   ]
 }
