@@ -55,12 +55,13 @@ npm run typecheck
 - An explicit **“wrap up”** authorizes one focused Git commit for the current task. Otherwise, commit only when the user asks. Preserve unrelated work, including changes already staged.
 - Use `type(scope): imperative summary` for commit subjects, for example `docs(workflow): document the wrap-up process`. Keep any commit body under 50 words and use it for context the diff alone cannot explain.
 - Finish the task, run the relevant checks and `git diff --check`, and add a short dated entry to `CHANGELOG.md` (create it if needed). Record what changed, the checks run, and any known limitations. Stage and commit only the task's changes, then summarize the outcome and give the commit hash.
-- Version bumps, Git pushes, and Claude artifact publishing each require a separate explicit request. The user can combine requests in one message, such as **“wrap up and publish to the artifact.”**
+- Version bumps, Git pushes, and Claude artifact publishing each require a separate explicit request. A release or publish request also covers its commit (see Publishing). The user can combine requests in one message, such as **“wrap up and publish to the artifact.”**
 
 ## Publishing
 
 Keep the version fixed during development, local builds, and previews. Bump the `v` shown in game once per batch, before the release build, when the user asks for a versioned release or explicitly requests a bump. Publishing small fixes can reuse the current version.
 
-1. Run `npm run build` to generate `dist/index.html` locally. Deployment is a separate step.
-2. Publish `dist/index.html` to the **same** artifact URL, `https://claude.ai/artifact/APmUNmJzfP4saKjkqWW2kJ`, so the link and the cloud saves keep working.
-3. The artifact needs the `db` and `user` capabilities. They persist across redeploys, so leave the capabilities field out when republishing.
+1. Commit first. A request to release or publish a version includes committing it: write the patch note, bump the version, add the `CHANGELOG.md` entry, run the checks, and commit, so the published build matches a commit. Never publish from uncommitted changes.
+2. Run `npm run build` to generate `dist/index.html` from that commit.
+3. Publish `dist/index.html` to the **same** artifact URL, `https://claude.ai/artifact/APmUNmJzfP4saKjkqWW2kJ`, so the link and the cloud saves keep working.
+4. The artifact needs the `db` and `user` capabilities. They persist across redeploys, so leave the capabilities field out when republishing.
